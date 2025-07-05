@@ -1,0 +1,25 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "swarm-of-experts"
+version = "0.1.0"
+description = "A swarm of experts implementation using FastAPI and LangChain"
+readme = "README.md"
+requires-python = ">=3.11"
+authors = [
+    { name = "moon-strider" }
+]
+dependencies = [
+    "fastapi[standard]==0.115.14",
+    "langchain==0.3.26",
+    "langchain-core==0.3.68",
+    "langchain-community==0.3.27",
+    "langchain-openai==0.3.27",
+    "langchain-anthropic==0.3.17",
+    "langchain-google-genai==2.1.6",
+    "langchain-deepseek==0.1.3",
+    "uvicorn==0.35.0",
+    "python-dotenv==1.1.1",
+]
