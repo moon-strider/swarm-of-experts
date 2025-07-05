@@ -1,28 +1,24 @@
 from typing import Iterator, List, Optional
-from langchain_openai import ChatOpenAI
+from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
 
 from .base import LLMProvider, Message
 
 
-class OpenAIProvider(LLMProvider):
+class GoogleProvider(LLMProvider):
     MODELS = [
-        "gpt-4o",
-        "gpt-4.1-nano", 
-        "gpt-4.1-mini",
-        "gpt-4.1",
-        "o4-mini",
-        "o3",
-        "o3-pro"
+        "gemini-2.5-pro-exp",
+        "gemini-2.5-flash-exp",
+        "gemini-2.5-flash-lite-exp",
     ]
     
-    def __init__(self, api_key: str, model: str = "gpt-4.1-mini", **kwargs):
+    def __init__(self, api_key: str, model: str = "gemini-2.5-flash-lite-exp", **kwargs):
         super().__init__(api_key, model, **kwargs)
-        self._client = ChatOpenAI(
-            api_key=self.api_key,
+        self._client = ChatGoogleGenerativeAI(
+            google_api_key=self.api_key,
             model=self.model,
             temperature=self.temperature,
-            max_tokens=self.max_tokens,
+            max_output_tokens=self.max_tokens,
             streaming=self.streaming_enabled
         )
         

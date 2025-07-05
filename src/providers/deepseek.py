@@ -5,21 +5,17 @@ from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
 from .base import LLMProvider, Message
 
 
-class OpenAIProvider(LLMProvider):
+class DeepSeekProvider(LLMProvider):
     MODELS = [
-        "gpt-4o",
-        "gpt-4.1-nano", 
-        "gpt-4.1-mini",
-        "gpt-4.1",
-        "o4-mini",
-        "o3",
-        "o3-pro"
+        "deepseek-chat",
+        "deepseek-reasoner",
     ]
     
-    def __init__(self, api_key: str, model: str = "gpt-4.1-mini", **kwargs):
+    def __init__(self, api_key: str, model: str = "deepseek-chat", **kwargs):
         super().__init__(api_key, model, **kwargs)
         self._client = ChatOpenAI(
             api_key=self.api_key,
+            base_url="https://api.deepseek.com",
             model=self.model,
             temperature=self.temperature,
             max_tokens=self.max_tokens,

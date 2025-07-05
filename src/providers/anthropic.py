@@ -1,28 +1,24 @@
 from typing import Iterator, List, Optional
-from langchain_openai import ChatOpenAI
+from langchain_anthropic import ChatAnthropic
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
 
 from .base import LLMProvider, Message
 
 
-class OpenAIProvider(LLMProvider):
+class AnthropicProvider(LLMProvider):
     MODELS = [
-        "gpt-4o",
-        "gpt-4.1-nano", 
-        "gpt-4.1-mini",
-        "gpt-4.1",
-        "o4-mini",
-        "o3",
-        "o3-pro"
+        "claude-opus-4-20250514",
+        "claude-sonnet-4-20250514",
+        "claude-3-5-haiku-20241022",
     ]
     
-    def __init__(self, api_key: str, model: str = "gpt-4.1-mini", **kwargs):
+    def __init__(self, api_key: str, model: str = "claude-3-5-haiku-20241022", **kwargs):
         super().__init__(api_key, model, **kwargs)
-        self._client = ChatOpenAI(
+        self._client = ChatAnthropic(
             api_key=self.api_key,
             model=self.model,
             temperature=self.temperature,
-            max_tokens=self.max_tokens,
+            max_tokens=self.max_tokens if self.max_tokens else 4096,
             streaming=self.streaming_enabled
         )
         
