@@ -2,6 +2,7 @@ import os
 from typing import Optional
 from dataclasses import dataclass
 from dotenv import load_dotenv
+from .swarm_configs import get_swarm_config, SwarmConfig
 
 load_dotenv()
 
@@ -16,6 +17,7 @@ class Settings:
     temperature: float = 0.7
     max_tokens: Optional[int] = None
     stream: bool = True
+    swarm_config_name: str = "basic"
     
     def __post_init__(self):
         self.openai_api_key = os.getenv('OPENAI_API_KEY')
@@ -34,6 +36,22 @@ class Settings:
         if not any([self.openai_api_key, self.anthropic_api_key, self.google_api_key, self.deepseek_api_key]):
             return False, "No API keys found. Please set at least one provider API key."
         return True, ""
+    
+    def get_swarm_config(self) -> SwarmConfig:
+        return get_swarm_config(self.swarm_config_name)
+    
+    def get_api_key_for_provider(self, provider_name: str) -> Optional[str]:
+        provider_lower = provider_name.lower()
+        if provider_lower == "openai":
+            return self.openai_api_key
+        elif provider_lower == "anthropic":
+            return self.anthropic_api_key
+        elif provider_lower == "google":
+            return self.google_api_key
+        elif provider_lower == "deepseek":
+            return self.deepseek_api_key
+        else:
+            raise ValueError(f"Unknown provider: {provider_name}")
 
 
 settings = Settings()

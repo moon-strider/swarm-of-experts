@@ -47,3 +47,6 @@ htmlcov/
 *.swo
 *~
 .DS_Store
+
+logs/
+*.log

@@ -6,109 +6,182 @@ from ..providers.factory import ProviderFactory
 from ..core.chat import ChatSession
 from ..utils.terminal import clear_screen, enable_windows_ansi
 from .ui import (
-    print_header, print_error, print_warning, print_info,
-    format_user_message, get_input_prompt, Color
+    print_header, print_error, print_warning, print_info, print_success,
+    format_user_message, format_assistant_message, get_input_prompt, Color, UI
 )
 from .animations import SpinnerAnimation
+from ..config.swarm_configs import SWARM_CONFIGS, SwarmConfig
+from ..utils.logging import setup_logging
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class CLIApp:
     def __init__(self):
         enable_windows_ansi()
-        self.session: Optional[ChatSession] = None
-        self.animation = SpinnerAnimation()
+        self.provider = None
+        self.chat_session = None
+        self.ui = UI()
+        self.is_running = False
+        self.swarm_config = None
+
         
-    def setup(self) -> bool:
-        valid, error_msg = settings.validate()
-        if not valid:
-            print_error(error_msg)
-            return False
-            
-        try:
-            provider_name = ProviderFactory.get_provider_from_model(settings.default_model)
-            if not provider_name:
-                provider_name = "openai"
-                
-            api_key = getattr(settings, f"{provider_name}_api_key", None)
-            if not api_key:
-                print_error(f"No API key found for {provider_name}")
-                return False
-                
-            provider = ProviderFactory.create(
-                provider_name=provider_name,
-                api_key=api_key,
-                model=settings.default_model,
-                temperature=settings.temperature,
-                max_tokens=settings.max_tokens,
-                stream=settings.stream
-            )
-            
-            self.session = ChatSession(provider)
-            return True
-            
-        except Exception as e:
-            print_error(f"Failed to initialize provider: {e}")
-            return False
-            
-    def run(self) -> None:
+    def setup(self):
+        setup_logging()
+        logger.info("Starting Swarm of Experts CLI")
+
         clear_screen()
-        print_header(
-            "CLI Chat Assistant",
-            "Type 'exit' or 'quit' to leave, 'clear' to clear screen, '/clear' to clear history"
-        )
-        
+        self.ui.print_header()
+
+        if not settings.validate():
+            self.ui.print_error("No API keys found in environment variables")
+            self.ui.print_info("Please set at least one of: OPENAI_API_KEY, ANTHROPIC_API_KEY, GOOGLE_API_KEY, DEEPSEEK_API_KEY")
+            return False
+
+        self.ui.print_info("\nAvailable configurations:")
+        for name, config in SWARM_CONFIGS.items():
+            if config.is_parallel:
+                self.ui.print_info(f"  - {name}: {len(config.generators)} models in parallel → merged response")
+            else:
+                self.ui.print_info(f"  - {name}: Single model mode")
+
         while True:
+            config_name = input(f"\n{self.ui.theme.input_prompt} Select configuration (default: basic): ").strip()
+            if not config_name:
+                config_name = "basic"
+
+            if config_name in SWARM_CONFIGS:
+                self.swarm_config = SWARM_CONFIGS[config_name]
+                settings.swarm_config_name = config_name
+                break
+            else:
+                self.ui.print_error(f"Invalid configuration: {config_name}")
+
+        logger.info(f"Selected swarm configuration: {config_name}")
+
+        try:
+            factory = ProviderFactory()
+
+            if self.swarm_config.is_parallel:
+                first_gen = self.swarm_config.generators[0]
+                api_key = settings.get_api_key_for_provider(first_gen.provider)
+                self.provider = factory.create(
+                    first_gen.provider,
+                    api_key=api_key,
+                    model=first_gen.model,
+                    temperature=settings.temperature,
+                    max_tokens=settings.max_tokens
+                )
+                self.ui.print_success(f"\n✓ Initialized swarm mode with {len(self.swarm_config.generators)} models")
+            else:
+                gen = self.swarm_config.generators[0]
+                api_key = settings.get_api_key_for_provider(gen.provider)
+                self.provider = factory.create(
+                    gen.provider,
+                    api_key=api_key,
+                    model=gen.model,
+                    temperature=settings.temperature,
+                    max_tokens=settings.max_tokens
+                )
+                self.ui.print_success(f"\n✓ Using {gen.model}")
+
+            self.chat_session = ChatSession(self.provider, swarm_config=self.swarm_config)
+
+            self.ui.print_info("\nCommands:")
+            self.ui.print_info("  - Type 'exit' or 'quit' to end the conversation")
+            self.ui.print_info("  - Type 'clear' or '/clear' to clear the screen or history")
+            self.ui.print_info("  - Press Ctrl+C to interrupt streaming responses\n")
+
+            return True
+
+        except Exception as e:
+            self.ui.print_error(f"Failed to initialize: {str(e)}")
+            logger.exception("Setup failed")
+            return False
+            
+    def run(self):
+        self.is_running = True
+
+        while self.is_running:
             try:
-                user_input = input(get_input_prompt())
-                
-                if not user_input.strip():
+                user_input = input(self.ui.get_input_prompt()).strip()
+
+                if not user_input:
                     continue
-                    
+
                 if user_input.lower() in ['exit', 'quit']:
-                    print_info("\nGoodbye!")
+                    self.ui.print_info("\nGoodbye! 👋")
+                    self.is_running = False
                     break
-                    
-                if user_input.lower() == 'clear':
+
+                elif user_input.lower() == 'clear':
                     clear_screen()
-                    print_header(
-                        "CLI Chat Assistant",
-                        "Type 'exit' or 'quit' to leave, 'clear' to clear screen, '/clear' to clear history"
+                    self.ui.print_header()
+                    continue
+
+                elif user_input.lower() == '/clear':
+                    self.chat_session.clear_history()
+                    self.ui.print_info("Conversation history cleared.")
+                    continue
+
+                print(self.ui.format_user_message(user_input))
+
+                if self.swarm_config.is_parallel:
+                    animation = SpinnerAnimation(
+                        f"Querying {len(self.swarm_config.generators)} models in parallel"
                     )
+                else:
+                    animation = SpinnerAnimation("Thinking")
+
+                animation.start()
+
+                try:
+                    print(self.ui.format_assistant_message(), end='', flush=True)
+
+                    if settings.stream:
+                        first_chunk = True
+                        for chunk in self.chat_session.stream_message(user_input):
+                            if first_chunk:
+                                animation.stop()
+                                first_chunk = False
+                            print(self.ui.theme.assistant_text(chunk), end='', flush=True)
+                    else:
+                        response = self.chat_session.send_message(user_input)
+                        animation.stop()
+                        print(self.ui.theme.assistant_text(response))
+
+                    print()
+
+                except KeyboardInterrupt:
+                    animation.stop()
+                    self.ui.print_warning("\n\nResponse interrupted by user")
+                    logger.info("User interrupted response")
                     continue
-                    
-                if user_input.lower() == '/clear':
-                    self.session.clear_history()
-                    print_info("Conversation history cleared.")
-                    continue
-                    
-                print(format_user_message(user_input))
-                
-                self.animation.start()
-                
-                first_chunk = True
-                sys.stdout.write(f"\n{Color.BOLD.value}{Color.GREEN.value}Assistant:{Color.RESET.value}\n")
-                sys.stdout.write(f"{Color.DIM.value}")
-                
-                for chunk in self.session.stream_message(user_input):
-                    if first_chunk:
-                        self.animation.stop()
-                        first_chunk = False
-                    sys.stdout.write(chunk)
-                    sys.stdout.flush()
-                    
-                sys.stdout.write(f"{Color.RESET.value}\n")
-                
+
+                except Exception as e:
+                    animation.stop()
+                    self.ui.print_error(f"\n\nError: {str(e)}")
+                    logger.exception("Error during message handling")
+
             except KeyboardInterrupt:
-                self.animation.stop()
-                print_warning("\n\nInterrupted. Type 'exit' to quit.")
+                self.ui.print_warning("\n\nUse 'exit' or 'quit' to leave the chat")
                 continue
-                
+
+            except EOFError:
+                self.ui.print_info("\nGoodbye! 👋")
+                self.is_running = False
+                break
+
             except Exception as e:
-                self.animation.stop()
-                print_error(f"An error occurred: {e}")
+                self.ui.print_error(f"Unexpected error: {str(e)}")
+                logger.exception("Unexpected error in main loop")
                 
-    def start(self) -> None:
-        if self.setup():
-            self.run()
-        else:
-            sys.exit(1)
+    def start(self):
+        try:
+            if self.setup():
+                self.run()
+        finally:
+            if self.chat_session:
+                self.chat_session.cleanup()
+            logger.info("Application shutdown")

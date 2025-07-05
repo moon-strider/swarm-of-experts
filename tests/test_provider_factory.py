@@ -67,8 +67,8 @@ class TestProviderFactory:
         ("o4-mini", "openai"),
         ("claude-3-5-haiku-20241022", "anthropic"),
         ("claude-opus-4-20250514", "anthropic"),
-        ("gemini-2.5-flash-exp", "google"),
-        ("gemini-2.5-pro-exp", "google"),
+        ("gemini-2.5-flash", "google"),
+        ("gemini-2.5-pro", "google"),
         ("deepseek-chat", "deepseek"),
         ("deepseek-reasoner", "deepseek")
     ])

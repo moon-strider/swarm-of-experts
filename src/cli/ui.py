@@ -40,6 +40,16 @@ class Theme:
     INFO_COLOR = Color.CYAN.value
     SUCCESS_COLOR = Color.GREEN.value
     
+    @property
+    def input_prompt(self) -> str:
+        return f"{Color.BOLD.value}{Color.BLUE.value}>{Color.RESET.value}"
+        
+    def primary(self, text: str) -> str:
+        return f"{Color.CYAN.value}{text}{Color.RESET.value}"
+        
+    def assistant_text(self, text: str) -> str:
+        return f"{self.ASSISTANT_COLOR}{text}{Color.RESET.value}"
+    
 
 def format_user_message(message: str) -> str:
     return f"\n{Theme.USER_PREFIX} {message}"
@@ -74,3 +84,34 @@ def print_header(title: str, subtitle: Optional[str] = None) -> None:
 
 def get_input_prompt() -> str:
     return f"\n{Color.BOLD.value}{Color.BLUE.value}>{Color.RESET.value} "
+
+
+class UI:
+    def __init__(self):
+        self.theme = Theme()
+        
+    def print_header(self):
+        print(self.theme.primary("=" * 60))
+        print(self.theme.primary("🤖 Swarm of Experts - Multi-Model Chat Interface"))
+        print(self.theme.primary("=" * 60))
+        
+    def format_user_message(self, message: str) -> str:
+        return format_user_message(message)
+        
+    def format_assistant_message(self) -> str:
+        return f"\n{Theme.ASSISTANT_PREFIX} "
+        
+    def print_error(self, message: str) -> None:
+        print_error(message)
+        
+    def print_warning(self, message: str) -> None:
+        print_warning(message)
+        
+    def print_info(self, message: str) -> None:
+        print_info(message)
+        
+    def print_success(self, message: str) -> None:
+        print_success(message)
+        
+    def get_input_prompt(self) -> str:
+        return get_input_prompt()

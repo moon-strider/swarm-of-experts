@@ -26,9 +26,9 @@ class TestGoogleProvider:
         assert provider.validate_model() is False
     
     @pytest.mark.parametrize("model", [
-        "gemini-2.5-pro-exp",
-        "gemini-2.5-flash-exp",
-        "gemini-2.5-flash-lite-exp"
+        "gemini-2.5-pro",
+        "gemini-2.5-flash",
+        "gemini-2.5-flash-lite-preview-06-17",
     ])
     def test_all_models_validation(self, api_key, model):
         provider = GoogleProvider(api_key=api_key, model=model)
