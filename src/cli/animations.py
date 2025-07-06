@@ -13,6 +13,8 @@ class Animation(ABC):
         self.thread: Optional[threading.Thread] = None
         
     def start(self) -> None:
+        sys.stdout.flush()
+        sys.stderr.flush()
         self.running = True
         self.thread = threading.Thread(target=self._animate, daemon=True)
         self.thread.start()
@@ -28,8 +30,10 @@ class Animation(ABC):
         pass
         
     def _clear_line(self) -> None:
-        sys.stdout.write('\r' + ' ' * 80 + '\r')
+        sys.stdout.write('\r\033[K')
+        sys.stdout.write('\r')
         sys.stdout.flush()
+        sys.stderr.flush()
 
 
 class SpinnerAnimation(Animation):
@@ -39,10 +43,11 @@ class SpinnerAnimation(Animation):
         self.frames = frames or ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
         
     def _animate(self) -> None:
+        time.sleep(0.02)
         frame_index = 0
         while self.running:
             frame = self.frames[frame_index % len(self.frames)]
-            sys.stdout.write(f'\r{Color.CYAN.value}{frame} {self.text}...{Color.RESET.value}')
+            sys.stdout.write(f'\r\033[K{Color.CYAN.value}{frame} {self.text}...{Color.RESET.value}')
             sys.stdout.flush()
             time.sleep(0.1)
             frame_index += 1
