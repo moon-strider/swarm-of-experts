@@ -90,7 +90,7 @@ class CLIApp:
 
             self.ui.print_info("\nCommands:")
             self.ui.print_info("  - Type 'exit' or 'quit' to end the conversation")
-            self.ui.print_info("  - Type 'clear' or '/clear' to clear the screen or history")
+            self.ui.print_info("  - Type '/clear' to clear the screen and conversation history")
             self.ui.print_info("  - Press Ctrl+C to interrupt streaming responses\n")
 
             return True
@@ -115,14 +115,11 @@ class CLIApp:
                     self.is_running = False
                     break
 
-                elif user_input.lower() == 'clear':
+                elif user_input.lower() == '/clear':
                     clear_screen()
                     self.ui.print_header()
-                    continue
-
-                elif user_input.lower() == '/clear':
                     self.chat_session.clear_history()
-                    self.ui.print_info("Conversation history cleared.")
+                    self.ui.print_info("Screen cleared and conversation history cleared.")
                     continue
 
                 print(self.ui.format_user_message(user_input))
