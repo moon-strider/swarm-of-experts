@@ -64,20 +64,12 @@ class CLIApp:
             factory = ProviderFactory()
 
             if self.swarm_config.is_parallel:
-                first_gen = self.swarm_config.generators[0]
-                api_key = settings.get_api_key_for_provider(first_gen.provider)
-                self.provider = factory.create(
-                    first_gen.provider,
-                    api_key=api_key,
-                    model=first_gen.model,
-                    temperature=settings.temperature,
-                    max_tokens=settings.max_tokens
-                )
                 self.ui.print_success(f"\n✓ Initialized swarm mode with {len(self.swarm_config.generators)} models")
+                provider = None
             else:
                 gen = self.swarm_config.generators[0]
                 api_key = settings.get_api_key_for_provider(gen.provider)
-                self.provider = factory.create(
+                provider = factory.create(
                     gen.provider,
                     api_key=api_key,
                     model=gen.model,
@@ -86,7 +78,7 @@ class CLIApp:
                 )
                 self.ui.print_success(f"\n✓ Using {gen.model}")
 
-            self.chat_session = ChatSession(self.provider, swarm_config=self.swarm_config)
+            self.chat_session = ChatSession(provider, swarm_config=self.swarm_config)
 
             self.ui.print_info("\nCommands:")
             self.ui.print_info("  - Type 'exit' or 'quit' to end the conversation")

@@ -25,18 +25,14 @@ class ChatSession:
         
         try:
             if self.swarm_config and self.swarm_config.is_parallel:
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
-                try:
-                    responses = loop.run_until_complete(
-                        self.executor.execute_parallel(
-                            self.swarm_config,
-                            self.history.get_messages(),
-                            stream=False
-                        )
+                loop = asyncio.get_event_loop()
+                responses = loop.run_until_complete(
+                    self.executor.execute_parallel(
+                        self.swarm_config,
+                        self.history.get_messages(),
+                        stream=False
                     )
-                finally:
-                    loop.close()
+                )
                 
                 merger_api_key = settings.get_api_key_for_provider(self.swarm_config.merger.provider)
                 merger_provider = self.factory.create(
@@ -63,18 +59,14 @@ class ChatSession:
         
         try:
             if self.swarm_config and self.swarm_config.is_parallel:
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
-                try:
-                    responses = loop.run_until_complete(
-                        self.executor.execute_parallel(
-                            self.swarm_config,
-                            self.history.get_messages(),
-                            stream=False
-                        )
+                loop = asyncio.get_event_loop()
+                responses = loop.run_until_complete(
+                    self.executor.execute_parallel(
+                        self.swarm_config,
+                        self.history.get_messages(),
+                        stream=False
                     )
-                finally:
-                    loop.close()
+                )
                 
                 merger_api_key = settings.get_api_key_for_provider(self.swarm_config.merger.provider)
                 merger_provider = self.factory.create(

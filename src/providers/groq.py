@@ -33,16 +33,22 @@ class GroqProvider(LLMProvider):
                 converted.append(SystemMessage(content=msg.content))
         return converted
         
-    def generate(self, messages: List[Message]) -> str:
-        langchain_messages = self._convert_messages(messages)
-        response = self._client.invoke(langchain_messages)
-        return response.content
+    def generate(self, messages: List) -> str:
+        try:
+            langchain_messages = self._convert_messages(messages)
+            response = self._client.invoke(langchain_messages)
+            return response.content
+        except Exception as e:
+            raise RuntimeError(f"Failed to generate response from Groq: {str(e)}")
         
-    def stream(self, messages: List[Message]) -> Iterator[str]:
-        langchain_messages = self._convert_messages(messages)
-        for chunk in self._client.stream(langchain_messages):
-            if chunk.content:
-                yield chunk.content
+    def stream(self, messages: List) -> Iterator[str]:
+        try:
+            langchain_messages = self._convert_messages(messages)
+            for chunk in self._client.stream(langchain_messages):
+                if chunk.content:
+                    yield chunk.content
+        except Exception as e:
+            raise RuntimeError(f"Failed to stream response from Groq: {str(e)}")
                 
     def validate_model(self) -> bool:
         return self.model in self.MODELS

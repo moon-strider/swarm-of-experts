@@ -78,9 +78,9 @@ SWARM_CONFIGS = {
         name="groq-swarm",
         generators=[
             GeneratorConfig(provider="groq", model="deepseek-r1-distill-llama-70b", temperature=0.7),
-            GeneratorConfig(provider="groq", model="kimi-k2-instruct", temperature=0.7),
+            GeneratorConfig(provider="groq", model="deepseek-r1-distill-llama-70b", temperature=0.3),
         ],
-        merger=GeneratorConfig(provider="groq", model="deepseek-r1-distill-llama-70b", temperature=0.3)
+        merger=GeneratorConfig(provider="groq", model="kimi-k2-instruct", temperature=0.3)
     ),
     "groq-single": SwarmConfig(
         name="groq-single",
