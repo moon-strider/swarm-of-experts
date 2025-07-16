@@ -13,6 +13,7 @@ class Settings:
     anthropic_api_key: Optional[str] = None
     google_api_key: Optional[str] = None
     deepseek_api_key: Optional[str] = None
+    groq_api_key: Optional[str] = None
     default_model: str = "gpt-4.1-mini"
     temperature: float = 0.7
     max_tokens: Optional[int] = None
@@ -24,6 +25,7 @@ class Settings:
         self.anthropic_api_key = os.getenv('ANTHROPIC_API_KEY')
         self.google_api_key = os.getenv('GOOGLE_API_KEY')
         self.deepseek_api_key = os.getenv('DEEPSEEK_API_KEY')
+        self.groq_api_key = os.getenv('GROQ_API_KEY')
         
         if env_model := os.getenv('DEFAULT_MODEL'):
             self.default_model = env_model
@@ -33,7 +35,7 @@ class Settings:
             self.max_tokens = int(env_tokens)
             
     def validate(self) -> tuple[bool, str]:
-        if not any([self.openai_api_key, self.anthropic_api_key, self.google_api_key, self.deepseek_api_key]):
+        if not any([self.openai_api_key, self.anthropic_api_key, self.google_api_key, self.deepseek_api_key, self.groq_api_key]):
             return False, "No API keys found. Please set at least one provider API key."
         return True, ""
     
@@ -50,6 +52,8 @@ class Settings:
             return self.google_api_key
         elif provider_lower == "deepseek":
             return self.deepseek_api_key
+        elif provider_lower == "groq":
+            return self.groq_api_key
         else:
             raise ValueError(f"Unknown provider: {provider_name}")
 

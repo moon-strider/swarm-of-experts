@@ -23,13 +23,14 @@ MERGER_PROMPT_TEMPLATE = """You are an expert AI response synthesizer. Your task
    - Combines the best insights from all responses
    - Corrects any inaccuracies found
    - Provides the most comprehensive and helpful answer
-   - Maintains a natural, conversational tone
+   - Fully executes upon users' task/question
 
 ## Important Rules:
 - Do NOT mention that you are analyzing multiple responses
 - Do NOT reference "other answers" or "responses"
 - Write as if you are directly answering the user's question
 - Ensure your answer is self-contained and complete
+- You may augment the final answer with something that is absent from all of the answers provided to you, if you feel that it is important to include in the final answer for it to be complete and helpful
 
 Provide your synthesized response below:"""
 
@@ -61,7 +62,7 @@ class SwarmConfig:
 SWARM_CONFIGS = {
     "basic": SwarmConfig(
         name="basic",
-        generators=[GeneratorConfig(provider="openai", model="gpt-4.1-mini")],
+        generators=[GeneratorConfig(provider="openai", model="o3-pro")],
         merger=None
     ),
     "swarm-lite": SwarmConfig(
@@ -72,6 +73,19 @@ SWARM_CONFIGS = {
             GeneratorConfig(provider="google", model="gemini-2.5-pro", temperature=0.7),
         ],
         merger=GeneratorConfig(provider="google", model="gemini-2.5-pro", temperature=0.3)
+    ),
+    "groq-swarm": SwarmConfig(
+        name="groq-swarm",
+        generators=[
+            GeneratorConfig(provider="groq", model="deepseek-r1-distill-llama-70b", temperature=0.7),
+            GeneratorConfig(provider="groq", model="kimi-k2-instruct", temperature=0.7),
+        ],
+        merger=GeneratorConfig(provider="groq", model="deepseek-r1-distill-llama-70b", temperature=0.3)
+    ),
+    "groq-single": SwarmConfig(
+        name="groq-single",
+        generators=[GeneratorConfig(provider="groq", model="deepseek-r1-distill-llama-70b")],
+        merger=None
     )
 }
 

@@ -4,6 +4,7 @@ from .openai import OpenAIProvider
 from .anthropic import AnthropicProvider
 from .deepseek import DeepSeekProvider
 from .google import GoogleProvider
+from .groq import GroqProvider
 
 
 class ProviderFactory:
@@ -12,6 +13,7 @@ class ProviderFactory:
         "anthropic": AnthropicProvider,
         "deepseek": DeepSeekProvider,
         "google": GoogleProvider,
+        "groq": GroqProvider,
     }
     
     @classmethod
@@ -41,4 +43,6 @@ class ProviderFactory:
             return "google"
         elif model_lower.startswith("deepseek"):
             return "deepseek"
+        elif model_lower.startswith(("deepseek-r1", "kimi", "llama", "mixtral", "gemma")):
+            return "groq"
         return None
