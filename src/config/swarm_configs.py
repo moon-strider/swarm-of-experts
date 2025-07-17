@@ -1,6 +1,5 @@
 from dataclasses import dataclass, field
-from typing import List, Tuple, Optional
-from enum import Enum
+from typing import List, Optional
 
 MERGER_PROMPT_TEMPLATE = """You are an expert AI response synthesizer. Your task is to analyze multiple AI-generated responses to the same query and create the best possible answer.
 

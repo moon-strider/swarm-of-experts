@@ -1,17 +1,12 @@
-import sys
 import asyncio
-from typing import Optional
 
 from ..config.settings import settings
 from ..providers.factory import ProviderFactory
 from ..core.chat import ChatSession
 from ..utils.terminal import clear_screen, enable_windows_ansi
-from .ui import (
-    print_header, print_error, print_warning, print_info, print_success,
-    format_user_message, format_assistant_message, get_input_prompt, Color, UI
-)
+from .ui import UI
 from .animations import SpinnerAnimation
-from ..config.swarm_configs import SWARM_CONFIGS, SwarmConfig
+from ..config.swarm_configs import SWARM_CONFIGS
 from ..utils.logging import setup_logging
 import logging
 

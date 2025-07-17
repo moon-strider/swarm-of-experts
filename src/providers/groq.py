@@ -1,7 +1,7 @@
 from typing import Iterator, List
 from langchain_groq import ChatGroq
 
-from .base import LLMProvider, Message
+from .base import LLMProvider
 from src.utils.message_converter import convert_messages
 
 

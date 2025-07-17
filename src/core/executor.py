@@ -4,7 +4,7 @@ from typing import List, Dict, Optional
 from dataclasses import dataclass
 import time
 
-from ..providers.base import LLMProvider, Message
+from ..providers.base import Message
 from ..providers.factory import ProviderFactory
 from ..config.swarm_configs import GeneratorConfig, SwarmConfig
 from ..config.settings import settings

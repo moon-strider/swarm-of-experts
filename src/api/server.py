@@ -6,7 +6,6 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.exceptions import RequestValidationError
-from pydantic import ValidationError as PydanticValidationError
 from contextlib import asynccontextmanager
 import json
 import logging
@@ -16,7 +15,7 @@ from dataclasses import dataclass
 import hashlib
 
 from ..config.settings import Settings
-from ..config.swarm_configs import SwarmConfig, get_swarm_config, get_all_swarm_configs
+from ..config.swarm_configs import get_swarm_config, get_all_swarm_configs
 from ..core.chat import ChatSession
 from ..providers.base import Message as CoreMessage
 from ..providers.factory import ProviderFactory
@@ -33,9 +32,7 @@ from .schemas import (
     ErrorDetail,
     ErrorType,
     ErrorCode,
-    ValidationErrorDetail,
     Role,
-    StreamOptions,
     Usage,
     PromptTokensDetails,
     CompletionTokensDetails

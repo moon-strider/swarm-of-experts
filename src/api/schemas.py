@@ -1,5 +1,5 @@
 from typing import List, Optional, Dict, Any, Union
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator
 from enum import Enum
 
 
@@ -37,13 +37,15 @@ class ChatMessage(BaseModel):
     content: str = Field(min_length=1, max_length=1000000)
     name: Optional[str] = Field(None, pattern=r'^[a-zA-Z0-9_-]+$', max_length=64)
     
-    @validator('content')
+    @field_validator('content')
+    @classmethod
     def validate_content(cls, v):
         if not v or not v.strip():
             raise ValueError("Message content cannot be empty")
         return v
     
-    @validator('name')
+    @field_validator('name')
+    @classmethod
     def validate_name(cls, v):
         if v is not None:
             if not v.strip():
@@ -96,7 +98,8 @@ class ChatCompletionRequest(BaseModel):
     logit_bias: Optional[Dict[str, float]] = None
     seed: Optional[int] = Field(None, ge=-2147483648, le=2147483647)
     
-    @validator('messages')
+    @field_validator('messages')
+    @classmethod
     def validate_messages(cls, v):
         if not v:
             raise ValueError("Messages cannot be empty")
@@ -111,13 +114,15 @@ class ChatCompletionRequest(BaseModel):
         
         return v
     
-    @validator('model')
+    @field_validator('model')
+    @classmethod
     def validate_model(cls, v):
         if not v or not v.strip():
             raise ValueError("Model cannot be empty")
         return v.strip()
     
-    @validator('stop')
+    @field_validator('stop')
+    @classmethod
     def validate_stop(cls, v):
         if v is not None:
             if isinstance(v, list):

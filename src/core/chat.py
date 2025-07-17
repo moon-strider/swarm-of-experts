@@ -1,7 +1,7 @@
 from typing import Optional, AsyncIterator, Dict, List
 import re
 from xml.sax.saxutils import escape
-from ..providers.base import LLMProvider, Message
+from ..providers.base import Message
 from .messages import MessageHistory
 from ..config.swarm_configs import SwarmConfig, TASKMASTER_PROMPT_TEMPLATE
 from .executor import ParallelExecutor
