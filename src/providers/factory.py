@@ -20,12 +20,12 @@ class ProviderFactory:
         pass
     
     @classmethod
-    def create(cls, provider_name: str, api_key: str, model: str, temperature: float = 0.7, json_mode: bool = False, **kwargs) -> LLMProvider:
+    def create(cls, provider_name: str, api_key: str, model: str, temperature: float = 0.7, **kwargs) -> LLMProvider:
         provider_class = cls._providers.get(provider_name.lower())
         if not provider_class:
             raise ValueError(f"Unknown provider: {provider_name}. Available: {list(cls._providers.keys())}")
             
-        return provider_class(api_key=api_key, model=model, temperature=temperature, json_mode=json_mode, **kwargs)
+        return provider_class(api_key=api_key, model=model, temperature=temperature, **kwargs)
         
     @classmethod
     def register(cls, name: str, provider_class: Type[LLMProvider]) -> None:

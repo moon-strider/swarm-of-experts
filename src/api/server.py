@@ -524,7 +524,7 @@ async def list_models():
             ErrorType.INTERNAL_ERROR,
             ErrorCode.INTERNAL_ERROR
         )
-        raise HTTPException(status_code=500, detail=error_response.error.dict())
+        raise HTTPException(status_code=500, detail=error_response.error.model_dump())
 
 
 @app.get("/v1/sessions/stats")
@@ -543,7 +543,7 @@ async def get_session_stats():
             ErrorType.INTERNAL_ERROR,
             ErrorCode.INTERNAL_ERROR
         )
-        raise HTTPException(status_code=500, detail=error_response.error.dict())
+        raise HTTPException(status_code=500, detail=error_response.error.model_dump())
 
 
 @app.post("/v1/sessions/cleanup")
@@ -574,7 +574,7 @@ async def force_session_cleanup():
             ErrorType.INTERNAL_ERROR,
             ErrorCode.INTERNAL_ERROR
         )
-        raise HTTPException(status_code=500, detail=error_response.error.dict())
+        raise HTTPException(status_code=500, detail=error_response.error.model_dump())
 
 
 def _convert_messages(messages: List[ChatMessage]) -> List[CoreMessage]:
@@ -794,21 +794,21 @@ async def chat_completions(request: ChatCompletionRequest):
                 response_content = await chat_session.send_message(core_messages[-1].content)
                 logger.debug(f"Generated response content ({len(response_content)} chars) for request {request_id}")
             except ValueError as ve:
+                logger.error(f"Value error in chat completions for request {request_id}: {ve}")
                 if "Task decomposition failed" in str(ve):
-                    logger.error(f"Task decomposition error for request {request_id}: {ve}")
-                    raise APIValidationError(
+                    error_response = create_generic_error_response(
                         str(ve),
-                        ErrorType.INVALID_REQUEST_ERROR,
-                        ErrorCode.INVALID_REQUEST,
-                        "messages"
+                        ErrorType.INTERNAL_ERROR,
+                        ErrorCode.INTERNAL_ERROR
                     )
+                    raise HTTPException(status_code=500, detail=error_response.error.model_dump())
                 else:
-                    logger.error(f"Validation error for request {request_id}: {ve}")
-                    raise APIValidationError(
+                    error_response = create_generic_error_response(
                         str(ve),
                         ErrorType.INVALID_REQUEST_ERROR,
-                        ErrorCode.INVALID_REQUEST
+                        ErrorCode.VALIDATION_ERROR
                     )
+                    raise HTTPException(status_code=400, detail=error_response.error.model_dump())
             except Exception as generation_error:
                 logger.error(f"Error generating response for request {request_id}: {generation_error}")
                 raise APIValidationError(
@@ -854,7 +854,7 @@ async def chat_completions(request: ChatCompletionRequest):
         logger.warning(f"Validation error in chat completions for request {request_id}: {e}")
         error_response = create_error_response(e)
         status_code = 400 if e.error_type == ErrorType.INVALID_REQUEST_ERROR else 500
-        raise HTTPException(status_code=status_code, detail=error_response.error.dict())
+        raise HTTPException(status_code=status_code, detail=error_response.error.model_dump())
     except ValueError as e:
         logger.error(f"Value error in chat completions for request {request_id}: {e}")
         error_response = create_generic_error_response(
@@ -862,7 +862,7 @@ async def chat_completions(request: ChatCompletionRequest):
             ErrorType.INVALID_REQUEST_ERROR,
             ErrorCode.VALIDATION_ERROR
         )
-        raise HTTPException(status_code=400, detail=error_response.error.dict())
+        raise HTTPException(status_code=400, detail=error_response.error.model_dump())
     except Exception as e:
         logger.error(f"Unexpected error in chat completions for request {request_id}: {e}", exc_info=True)
         error_response = create_generic_error_response(
@@ -870,7 +870,7 @@ async def chat_completions(request: ChatCompletionRequest):
             ErrorType.INTERNAL_ERROR,
             ErrorCode.INTERNAL_ERROR
         )
-        raise HTTPException(status_code=500, detail=error_response.error.dict())
+        raise HTTPException(status_code=500, detail=error_response.error.model_dump())
 
 
 @app.exception_handler(Exception)
@@ -885,7 +885,7 @@ async def global_exception_handler(request: Request, exc: Exception):
     from fastapi.responses import JSONResponse
     return JSONResponse(
         status_code=500,
-        content=error_response.error.dict()
+        content=error_response.error.model_dump()
     )
 
 
@@ -905,7 +905,7 @@ async def validation_exception_handler(request: Request, exc: APIValidationError
     from fastapi.responses import JSONResponse
     return JSONResponse(
         status_code=status_code,
-        content=error_response.error.dict()
+        content=error_response.error.model_dump()
     )
 
 
@@ -922,7 +922,7 @@ async def value_error_handler(request: Request, exc: ValueError):
     from fastapi.responses import JSONResponse
     return JSONResponse(
         status_code=400,
-        content=error_response.error.dict()
+        content=error_response.error.model_dump()
     )
 
 
@@ -951,7 +951,7 @@ async def request_validation_exception_handler(request: Request, exc: RequestVal
     from fastapi.responses import JSONResponse
     return JSONResponse(
         status_code=400,
-        content=error_response.error.dict()
+        content=error_response.error.model_dump()
     )
 
 
@@ -980,7 +980,7 @@ async def pydantic_validation_exception_handler(request: Request, exc: PydanticV
     from fastapi.responses import JSONResponse
     return JSONResponse(
         status_code=400,
-        content=error_response.error.dict()
+        content=error_response.error.model_dump()
     )
 
 

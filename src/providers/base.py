@@ -22,7 +22,6 @@ class LLMProvider(ABC):
         self.temperature = kwargs.get('temperature', 0.7)
         self.max_tokens = kwargs.get('max_tokens', None)
         self.streaming_enabled = kwargs.get('stream', True)
-        self.json_mode = kwargs.get('json_mode', False)
         
     @abstractmethod
     def generate(self, messages: List[Message]) -> str:

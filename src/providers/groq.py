@@ -12,10 +12,6 @@ class GroqProvider(LLMProvider):
         "gemma2-9b-it",
     ]
     
-    SUPPORTED_JSON_MODELS = [
-        "moonshotai/kimi-k2-instruct"
-    ]
-    
     def __init__(self, api_key: str, model: str = "deepseek-r1-distill-llama-70b", **kwargs):
         super().__init__(api_key, model, **kwargs)
         
@@ -26,11 +22,6 @@ class GroqProvider(LLMProvider):
             "max_tokens": self.max_tokens,
             "streaming": self.streaming_enabled
         }
-        
-        if self.json_mode:
-            if self.model not in self.SUPPORTED_JSON_MODELS:
-                raise ValueError(f"JSON mode not supported for model {self.model}. Supported models: {self.SUPPORTED_JSON_MODELS}")
-            client_kwargs["response_format"] = {"type": "json_object"}
         
         self._client = ChatGroq(**client_kwargs)
         
