@@ -1,4 +1,4 @@
-from typing import Optional, Dict, Type
+from typing import Dict, Type
 from .base import LLMProvider
 from .openai import OpenAIProvider
 from .anthropic import AnthropicProvider
@@ -35,17 +35,3 @@ class ProviderFactory:
     def get_available_providers(cls) -> list[str]:
         return list(cls._providers.keys())
         
-    @classmethod
-    def get_provider_from_model(cls, model: str) -> Optional[str]:
-        model_lower = model.lower()
-        if model_lower.startswith(("gpt", "o3", "o4")):
-            return "openai"
-        elif model_lower.startswith("claude"):
-            return "anthropic"
-        elif model_lower.startswith("gemini"):
-            return "google"
-        elif model_lower.startswith("deepseek"):
-            return "deepseek"
-        elif model_lower.startswith(("deepseek-r1", "moonshot", "llama", "mixtral", "gemma")):
-            return "groq"
-        return None

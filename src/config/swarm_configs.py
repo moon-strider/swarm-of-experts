@@ -49,15 +49,8 @@ class SwarmConfig:
     max_context_tokens: int = 128000
 
     @property
-    def per_generator_token_limit(self) -> Optional[int]:
-        if self.merger and self.generators:
-            available_tokens = int(self.max_context_tokens * 0.9)
-            return available_tokens // len(self.generators)
-        return None
-
-    @property
-    def is_parallel(self) -> bool:
-        return self.merger is not None and len(self.generators) > 1
+    def has_merger(self) -> bool:
+        return self.merger is not None
 
 SWARM_CONFIGS = {
     "basic": SwarmConfig(
@@ -97,10 +90,8 @@ def get_swarm_config(name: str) -> SwarmConfig:
 
 
 def get_all_swarm_configs() -> dict:
-    """Get all available swarm configurations"""
     return SWARM_CONFIGS
 
 
-def get_parallel_swarm_configs() -> dict:
-    """Get only parallel swarm configurations"""
-    return {name: config for name, config in SWARM_CONFIGS.items() if config.is_parallel}
+def get_multi_generator_swarm_configs() -> dict:
+    return {name: config for name, config in SWARM_CONFIGS.items() if len(config.generators) > 1}

@@ -42,7 +42,7 @@ class CLIApp:
 
         self.ui.print_info("\nAvailable configurations:")
         for name, config in SWARM_CONFIGS.items():
-            if config.is_parallel:
+            if config.has_merger:
                 self.ui.print_info(f"  - {name}: {len(config.generators)} models in parallel → merged response")
             else:
                 self.ui.print_info(f"  - {name}: Single model mode")
@@ -64,7 +64,7 @@ class CLIApp:
         try:
             factory = ProviderFactory()
 
-            if self.swarm_config.is_parallel:
+            if self.swarm_config.has_merger:
                 self.ui.print_success(f"\n✓ Initialized swarm mode with {len(self.swarm_config.generators)} models")
                 provider = None
             else:
@@ -117,7 +117,7 @@ class CLIApp:
 
                 print(self.ui.format_user_message(user_input))
 
-                if self.swarm_config.is_parallel:
+                if self.swarm_config.has_merger:
                     animation = SpinnerAnimation(
                         f"Querying {len(self.swarm_config.generators)} models in parallel"
                     )

@@ -3,7 +3,6 @@ import logging
 from typing import List, Dict, Tuple, Optional
 from dataclasses import dataclass
 import time
-from concurrent.futures import ThreadPoolExecutor
 
 from ..providers.base import LLMProvider, Message
 from ..providers.factory import ProviderFactory
@@ -19,26 +18,12 @@ class GeneratorResponse:
     elapsed_time: float
     error: Optional[str] = None
 
-class TokenLimiter:
-    
-    @staticmethod
-    def estimate_tokens(text: str) -> int:
-        return len(text) // 4
-
-    @staticmethod
-    def truncate_to_token_limit(text: str, max_tokens: int) -> str:
-        estimated_chars = max_tokens * 4
-        if len(text) > estimated_chars:
-            logger.warning(f"Truncating response from ~{TokenLimiter.estimate_tokens(text)} to {max_tokens} tokens")
-            return text[:estimated_chars] + "..."
-        return text
 
 class ParallelExecutor:
     
     def __init__(self, factory: ProviderFactory, timeout: int = 60):
         self.factory = factory
         self.timeout = timeout
-        self.executor = ThreadPoolExecutor(max_workers=10)
 
     async def execute_parallel(
         self, 
@@ -47,10 +32,7 @@ class ParallelExecutor:
         stream: bool = False
     ) -> List[GeneratorResponse]:
         
-        if not swarm_config.is_parallel:
-            raise ValueError("SwarmConfig must have multiple generators for parallel execution")
-
-        logger.info(f"Starting parallel execution with {len(swarm_config.generators)} generators")
+        logger.info(f"Starting execution with {len(swarm_config.generators)} generators")
 
         tasks = []
         for gen_config in swarm_config.generators:
@@ -58,7 +40,6 @@ class ParallelExecutor:
                 self._execute_single_generator(
                     gen_config,
                     messages,
-                    swarm_config.per_generator_token_limit,
                     stream
                 )
             )
@@ -70,7 +51,7 @@ class ParallelExecutor:
                 timeout=self.timeout
             )
         except asyncio.TimeoutError:
-            logger.error(f"Parallel execution timed out after {self.timeout}s")
+            logger.error(f"Execution timed out after {self.timeout}s")
             for task in tasks:
                 if not task.done():
                     task.cancel()
@@ -95,7 +76,6 @@ class ParallelExecutor:
         self,
         gen_config: GeneratorConfig,
         messages: List[Message],
-        token_limit: Optional[int],
         stream: bool
     ) -> GeneratorResponse:
         
@@ -113,24 +93,13 @@ class ParallelExecutor:
 
             logger.info(f"Executing {gen_config.provider}/{gen_config.model}")
 
-            loop = asyncio.get_running_loop()
-
             if stream:
                 chunks = []
-                stream_gen = await loop.run_in_executor(
-                    self.executor,
-                    lambda: list(provider.stream(messages))
-                )
-                content = "".join(stream_gen)
+                for chunk in provider.stream(messages):
+                    chunks.append(chunk)
+                content = "".join(chunks)
             else:
-                content = await loop.run_in_executor(
-                    self.executor,
-                    provider.generate,
-                    messages
-                )
-
-            if token_limit:
-                content = TokenLimiter.truncate_to_token_limit(content, token_limit)
+                content = provider.generate(messages)
 
             elapsed = time.time() - start_time
             logger.info(f"{gen_config.provider}/{gen_config.model} completed in {elapsed:.2f}s")
@@ -151,5 +120,30 @@ class ParallelExecutor:
                 error=str(e)
             )
 
+    async def stream_parallel(self, swarm_config: SwarmConfig, messages: List[Message]):
+        """Stream responses from the first generator (for single-generator configs)"""
+        if not swarm_config.generators:
+            return
+            
+        gen_config = swarm_config.generators[0]
+        
+        try:
+            api_key = settings.get_api_key_for_provider(gen_config.provider)
+            provider = self.factory.create(
+                gen_config.provider,
+                api_key=api_key,
+                model=gen_config.model,
+                temperature=gen_config.temperature
+            )
+            
+            logger.info(f"Streaming from {gen_config.provider}/{gen_config.model}")
+            
+            for chunk in provider.stream(messages):
+                yield chunk
+                
+        except Exception as e:
+            logger.error(f"Streaming from {gen_config.provider}/{gen_config.model} failed: {e}")
+            raise
+
     def close(self):
-        self.executor.shutdown(wait=True)
+        pass

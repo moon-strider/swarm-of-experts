@@ -1,12 +1,15 @@
 from abc import ABC, abstractmethod
 from typing import Iterator, List, Dict, Any, Optional
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from datetime import datetime
 
 
 @dataclass
 class Message:
     role: str
     content: str
+    timestamp: Optional[datetime] = field(default_factory=datetime.now)
+    metadata: dict = field(default_factory=dict)
     
     def to_dict(self) -> Dict[str, str]:
         return {"role": self.role, "content": self.content}

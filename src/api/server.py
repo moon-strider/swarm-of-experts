@@ -18,7 +18,7 @@ import hashlib
 from ..config.settings import Settings
 from ..config.swarm_configs import SwarmConfig, get_swarm_config, get_all_swarm_configs
 from ..core.chat import ChatSession
-from ..core.messages import ChatMessage as CoreChatMessage
+from ..providers.base import Message as CoreMessage
 from ..providers.factory import ProviderFactory
 from .schemas import (
     ChatCompletionRequest,
@@ -217,7 +217,7 @@ class TokenEstimator:
         return int(token_estimate)
     
     @staticmethod
-    def estimate_messages_tokens(messages: List[CoreChatMessage]) -> int:
+    def estimate_messages_tokens(messages: List[CoreMessage]) -> int:
         total_tokens = 0
         
         for message in messages:
@@ -245,8 +245,7 @@ class SessionManager:
     def _generate_session_key(self, messages: List[Dict[str, Any]], model: str) -> str:
         key_data = {
             'model': model,
-            'conversation_hash': hashlib.md5(json.dumps(messages, sort_keys=True).encode()).hexdigest(),
-            'timestamp': int(time.time() // 3600)
+            'conversation': json.dumps(messages, sort_keys=True)
         }
         key_string = json.dumps(key_data, sort_keys=True)
         return hashlib.md5(key_string.encode()).hexdigest()[:16]
@@ -568,19 +567,17 @@ async def force_session_cleanup():
         raise HTTPException(status_code=500, detail=error_response.error.dict())
 
 
-def _convert_messages(messages: List[ChatMessage]) -> List[CoreChatMessage]:
+def _convert_messages(messages: List[ChatMessage]) -> List[CoreMessage]:
     converted = []
     for msg in messages:
-        converted.append(CoreChatMessage(
+        converted.append(CoreMessage(
             role=msg.role.value,
-            content=msg.content,
-            timestamp=time.time()
+            content=msg.content
         ))
     return converted
 
 
 def _validate_input(text: str) -> str:
-    """Basic input validation - just ensure it's a string and not None"""
     if not isinstance(text, str):
         return ""
     return text
@@ -588,7 +585,7 @@ def _validate_input(text: str) -> str:
 
 async def _stream_response(
     chat_session: ChatSession,
-    messages: List[CoreChatMessage],
+    messages: List[CoreMessage],
     model: str,
     request_id: str,
     include_usage: bool = False
@@ -602,7 +599,7 @@ async def _stream_response(
         sanitized_messages = []
         for msg in messages:
             sanitized_content = _validate_input(msg.content)
-            sanitized_messages.append(CoreChatMessage(
+            sanitized_messages.append(CoreMessage(
                 role=msg.role,
                 content=sanitized_content,
                 timestamp=msg.timestamp

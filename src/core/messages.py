@@ -1,22 +1,14 @@
 from typing import List, Optional
-from datetime import datetime
-from dataclasses import dataclass, field
 from ..providers.base import Message
 
 
-@dataclass
-class ChatMessage(Message):
-    timestamp: datetime = field(default_factory=datetime.now)
-    metadata: dict = field(default_factory=dict)
-    
-    
 class MessageHistory:
     def __init__(self, max_messages: Optional[int] = None):
-        self._messages: List[ChatMessage] = []
+        self._messages: List[Message] = []
         self.max_messages = max_messages
         
     def add_message(self, role: str, content: str, **metadata) -> None:
-        message = ChatMessage(role=role, content=content, metadata=metadata)
+        message = Message(role=role, content=content, metadata=metadata)
         self._messages.append(message)
         
         if self.max_messages and len(self._messages) > self.max_messages:
