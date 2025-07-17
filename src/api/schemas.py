@@ -55,26 +55,6 @@ class ChatMessage(BaseModel):
         return v
 
 
-class ResponseFormat(BaseModel):
-    type: str = "text"
-
-
-class Function(BaseModel):
-    name: str
-    description: Optional[str] = None
-    parameters: Optional[Dict[str, Any]] = None
-
-
-class Tool(BaseModel):
-    type: str = "function"
-    function: Function
-
-
-class ToolChoice(BaseModel):
-    type: str = "auto"
-    function: Optional[Dict[str, str]] = None
-
-
 class StreamOptions(BaseModel):
     include_usage: Optional[bool] = False
 
@@ -91,9 +71,6 @@ class ChatCompletionRequest(BaseModel):
     stream: Optional[bool] = False
     stream_options: Optional[StreamOptions] = None
     n: Optional[int] = Field(default=1, ge=1, le=5)
-    response_format: Optional[ResponseFormat] = None
-    tools: Optional[List[Tool]] = None
-    tool_choice: Optional[Union[str, ToolChoice]] = None
     user: Optional[str] = Field(None, max_length=256)
     logit_bias: Optional[Dict[str, float]] = None
     seed: Optional[int] = Field(None, ge=-2147483648, le=2147483647)
@@ -215,7 +192,3 @@ class ErrorResponse(BaseModel):
     object: str = "error"
 
 
-class ValidationErrorDetail(BaseModel):
-    field: str
-    message: str
-    code: str

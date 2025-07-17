@@ -1,8 +1,6 @@
-from typing import Iterator, List
 from langchain_google_genai import ChatGoogleGenerativeAI
 
-from .base import LLMProvider, Message
-from src.utils.message_converter import convert_messages
+from .base import LLMProvider
 
 
 class GoogleProvider(LLMProvider):
@@ -20,15 +18,3 @@ class GoogleProvider(LLMProvider):
             temperature=self.temperature,
             max_output_tokens=self.max_tokens
         )
-        
-        
-    def generate(self, messages: List[Message]) -> str:
-        langchain_messages = convert_messages(messages)
-        response = self._client.invoke(langchain_messages)
-        return response.content
-        
-    def stream(self, messages: List[Message]) -> Iterator[str]:
-        langchain_messages = convert_messages(messages)
-        for chunk in self._client.stream(langchain_messages):
-            if chunk.content:
-                yield chunk.content

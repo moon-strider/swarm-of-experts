@@ -19,6 +19,3 @@ class MessageHistory:
         
     def clear(self) -> None:
         self._messages.clear()
-        
-    def __len__(self) -> int:
-        return len(self._messages)

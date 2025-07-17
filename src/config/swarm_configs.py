@@ -73,17 +73,17 @@ class SwarmConfig:
 SWARM_CONFIGS = {
     "basic": SwarmConfig(
         name="basic",
-        generators=[GeneratorConfig(provider="openai", model="o3-pro")],
+        generators=[GeneratorConfig(provider="openai", model="gpt-4.1")],
         merger=None
     ),
     "swarm-lite": SwarmConfig(
         name="swarm-lite",
         generators=[
-            GeneratorConfig(provider="google", model="gemini-2.5-pro", temperature=0.7),
-            GeneratorConfig(provider="google", model="gemini-2.5-pro", temperature=0.3),
-            GeneratorConfig(provider="google", model="gemini-2.5-pro", temperature=0.7),
+            GeneratorConfig(provider="openai", model="gpt-4.1-mini", temperature=0.7),
+            GeneratorConfig(provider="openai", model="gpt-4.1-mini", temperature=0.3),
+            GeneratorConfig(provider="openai", model="gpt-4.1-mini", temperature=0.7),
         ],
-        merger=GeneratorConfig(provider="google", model="gemini-2.5-pro", temperature=0.3)
+        merger=GeneratorConfig(provider="openai", model="gpt-4.1-mini", temperature=0.3)
     ),
     "groq-swarm": SwarmConfig(
         name="groq-swarm",

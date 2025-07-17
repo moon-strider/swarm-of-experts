@@ -20,10 +20,21 @@ class LLMProvider(ABC):
         self.max_tokens = kwargs.get('max_tokens', None)
         self.streaming_enabled = kwargs.get('stream', True)
         
-    @abstractmethod
     def generate(self, messages: List[Message]) -> str:
-        pass
+        try:
+            from ..utils.message_converter import convert_messages
+            langchain_messages = convert_messages(messages)
+            response = self._client.invoke(langchain_messages)
+            return response.content
+        except Exception as e:
+            raise RuntimeError(f"Failed to generate response from {self.__class__.__name__}: {str(e)}")
         
-    @abstractmethod
     def stream(self, messages: List[Message]) -> Iterator[str]:
-        pass
+        try:
+            from ..utils.message_converter import convert_messages
+            langchain_messages = convert_messages(messages)
+            for chunk in self._client.stream(langchain_messages):
+                if chunk.content:
+                    yield chunk.content
+        except Exception as e:
+            raise RuntimeError(f"Failed to stream response from {self.__class__.__name__}: {str(e)}")

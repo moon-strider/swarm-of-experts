@@ -51,41 +51,6 @@ class Theme:
         return f"{self.ASSISTANT_COLOR}{text}{Color.RESET.value}"
     
 
-def format_user_message(message: str) -> str:
-    return f"\n{Theme.USER_PREFIX} {message}"
-
-
-def format_assistant_message(message: str) -> str:
-    return f"\n{Theme.ASSISTANT_PREFIX}\n{Theme.ASSISTANT_COLOR}{message}{Color.RESET.value}"
-
-
-def print_error(message: str) -> None:
-    print(f"{Theme.ERROR_COLOR}Error: {message}{Color.RESET.value}", file=sys.stderr)
-
-
-def print_warning(message: str) -> None:
-    print(f"{Theme.WARNING_COLOR}Warning: {message}{Color.RESET.value}")
-
-
-def print_info(message: str) -> None:
-    print(f"{Theme.INFO_COLOR}{message}{Color.RESET.value}")
-
-
-def print_success(message: str) -> None:
-    print(f"{Theme.SUCCESS_COLOR}{message}{Color.RESET.value}")
-
-
-def print_header(title: str, subtitle: Optional[str] = None) -> None:
-    print(f"{Color.BOLD.value}{Color.CYAN.value}{title}{Color.RESET.value}")
-    if subtitle:
-        print(f"{Color.DIM.value}{subtitle}{Color.RESET.value}")
-    print("-" * 50)
-
-
-def get_input_prompt() -> str:
-    return f"\n{Color.BOLD.value}{Color.BLUE.value}>{Color.RESET.value} "
-
-
 class UI:
     def __init__(self):
         self.theme = Theme()
@@ -96,22 +61,22 @@ class UI:
         print(self.theme.primary("=" * 60))
         
     def format_user_message(self, message: str) -> str:
-        return format_user_message(message)
+        return f"\n{Theme.USER_PREFIX} {message}"
         
     def format_assistant_message(self) -> str:
         return f"\n{Theme.ASSISTANT_PREFIX} "
         
     def print_error(self, message: str) -> None:
-        print_error(message)
+        print(f"{Theme.ERROR_COLOR}Error: {message}{Color.RESET.value}", file=sys.stderr)
         
     def print_warning(self, message: str) -> None:
-        print_warning(message)
+        print(f"{Theme.WARNING_COLOR}Warning: {message}{Color.RESET.value}")
         
     def print_info(self, message: str) -> None:
-        print_info(message)
+        print(f"{Theme.INFO_COLOR}{message}{Color.RESET.value}")
         
     def print_success(self, message: str) -> None:
-        print_success(message)
+        print(f"{Theme.SUCCESS_COLOR}{message}{Color.RESET.value}")
         
     def get_input_prompt(self) -> str:
-        return get_input_prompt()
+        return f"\n{Color.BOLD.value}{Color.BLUE.value}>{Color.RESET.value} "
