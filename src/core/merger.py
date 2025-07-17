@@ -16,7 +16,8 @@ class ResponseMerger:
     def merge_responses(
         self, 
         user_query: str,
-        responses: List[GeneratorResponse]
+        responses: List[GeneratorResponse],
+        history: Optional[List[Message]] = None
     ) -> str:
         valid_responses = [r for r in responses if not r.error and r.content]
 
@@ -37,7 +38,10 @@ class ResponseMerger:
 
         logger.info(f"Merging {len(valid_responses)} responses")
 
-        messages = [Message(role="user", content=merger_prompt)]
+        if history:
+            messages = history[:-1] + [Message(role="user", content=merger_prompt)]
+        else:
+            messages = [Message(role="user", content=merger_prompt)]
 
         try:
             merged_response = self.provider.generate(messages)
@@ -50,7 +54,8 @@ class ResponseMerger:
     def stream_merge_responses(
         self,
         user_query: str,
-        responses: List[GeneratorResponse]
+        responses: List[GeneratorResponse],
+        history: Optional[List[Message]] = None
     ):
         valid_responses = [r for r in responses if not r.error and r.content]
 
@@ -67,7 +72,10 @@ class ResponseMerger:
             responses=formatted_responses
         )
 
-        messages = [Message(role="user", content=merger_prompt)]
+        if history:
+            messages = history[:-1] + [Message(role="user", content=merger_prompt)]
+        else:
+            messages = [Message(role="user", content=merger_prompt)]
 
         try:
             for chunk in self.provider.stream(messages):

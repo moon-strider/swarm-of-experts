@@ -34,6 +34,20 @@ MERGER_PROMPT_TEMPLATE = """You are an expert AI response synthesizer. Your task
 
 Provide your synthesized response below:"""
 
+TASKMASTER_PROMPT_TEMPLATE = """You are a task decomposition expert. Break the query into exactly 3 self-contained sub-prompts covering all aspects.
+
+Original Query: {user_query}
+
+Rules:
+- Each sub-prompt must be independent and complementary
+- Output your response using XML tags
+- Use exactly these tags: <sub_prompt_1>, <sub_prompt_2>, <sub_prompt_3>
+
+Example format:
+<sub_prompt_1>First focused sub-task here</sub_prompt_1>
+<sub_prompt_2>Second focused sub-task here</sub_prompt_2>
+<sub_prompt_3>Third focused sub-task here</sub_prompt_3>"""
+
 @dataclass
 class GeneratorConfig:
     provider: str
@@ -45,12 +59,17 @@ class SwarmConfig:
     name: str
     generators: List[GeneratorConfig] = field(default_factory=list)
     merger: Optional[GeneratorConfig] = None
+    taskmaster: Optional[GeneratorConfig] = None
     merger_prompt_template: str = MERGER_PROMPT_TEMPLATE
     max_context_tokens: int = 128000
 
     @property
     def has_merger(self) -> bool:
         return self.merger is not None
+    
+    @property
+    def has_taskmaster(self) -> bool:
+        return self.taskmaster is not None
 
 SWARM_CONFIGS = {
     "basic": SwarmConfig(
@@ -80,6 +99,16 @@ SWARM_CONFIGS = {
         name="groq-single",
         generators=[GeneratorConfig(provider="groq", model="deepseek-r1-distill-llama-70b")],
         merger=None
+    ),
+    "groq-taskmaster": SwarmConfig(
+        name="groq-taskmaster",
+        generators=[
+            GeneratorConfig(provider="groq", model="deepseek-r1-distill-llama-70b", temperature=0.7),
+            GeneratorConfig(provider="groq", model="deepseek-r1-distill-llama-70b", temperature=0.5),
+            GeneratorConfig(provider="groq", model="deepseek-r1-distill-llama-70b", temperature=0.3),
+        ],
+        taskmaster=GeneratorConfig(provider="groq", model="moonshotai/kimi-k2-instruct", temperature=0.3),
+        merger=GeneratorConfig(provider="groq", model="moonshotai/kimi-k2-instruct", temperature=0.3)
     )
 }
 

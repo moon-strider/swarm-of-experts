@@ -132,7 +132,6 @@ class CLIApp:
                     if settings.stream:
                         first_chunk = True
                         
-                        # Convert async generator to sync generator for CLI consumption
                         async def collect_chunks():
                             chunks = []
                             async for chunk in self.chat_session.stream_message(user_input):
@@ -158,6 +157,14 @@ class CLIApp:
                     logger.info("User interrupted response")
                     continue
 
+                except ValueError as ve:
+                    animation.stop()
+                    if "Task decomposition failed" in str(ve):
+                        self.ui.print_error(f"\n\n{str(ve)}")
+                        logger.error(f"Task decomposition error: {ve}")
+                    else:
+                        self.ui.print_error(f"\n\nError: {str(ve)}")
+                        logger.exception("Validation error during message handling")
                 except Exception as e:
                     animation.stop()
                     self.ui.print_error(f"\n\nError: {str(e)}")

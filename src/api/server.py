@@ -117,6 +117,16 @@ class APIValidator:
                     ErrorCode.INVALID_REQUEST,
                     "model"
                 )
+        
+        if swarm_config.has_taskmaster:
+            api_key = settings.get_api_key_for_provider(swarm_config.taskmaster.provider)
+            if not api_key:
+                raise APIValidationError(
+                    f"API key not configured for taskmaster provider '{swarm_config.taskmaster.provider}'",
+                    ErrorType.AUTHENTICATION_ERROR,
+                    ErrorCode.INVALID_REQUEST,
+                    "model"
+                )
     
     @staticmethod
     def validate_request(request: ChatCompletionRequest) -> None:
@@ -331,7 +341,7 @@ class SessionManager:
             except Exception as e:
                 logger.error(f"Error during background cleanup: {e}")
             
-            self._shutdown_event.wait(timeout=self.cleanup_interval_minutes * 60)
+            self._shutdown_event.wait(timeout=self.cleanup_interval_minutes * 300)
     
     def start_cleanup_task(self):
         if self._cleanup_task is None or not self._cleanup_task.is_alive():
@@ -640,6 +650,25 @@ async def _stream_response(
                     if chunk_index % 50 == 0:
                         logger.debug(f"Streamed {chunk_index} chunks for request {request_id}")
         
+        except ValueError as ve:
+            if "Task decomposition failed" in str(ve):
+                logger.error(f"Task decomposition error during streaming for request {request_id}: {ve}")
+                error_detail = ErrorDetail(
+                    message=str(ve),
+                    type=ErrorType.INVALID_REQUEST_ERROR.value,
+                    code=ErrorCode.INVALID_REQUEST.value,
+                    param="messages"
+                )
+            else:
+                logger.error(f"Validation error during streaming for request {request_id}: {ve}")
+                error_detail = ErrorDetail(
+                    message=str(ve),
+                    type=ErrorType.INVALID_REQUEST_ERROR.value,
+                    code=ErrorCode.INVALID_REQUEST.value
+                )
+            error_response = ErrorResponse(error=error_detail)
+            yield f"data: {error_response.model_dump_json()}\n\n"
+            return
         except Exception as stream_error:
             logger.error(f"Error during streaming for request {request_id}: {stream_error}")
             error_detail = ErrorDetail(
@@ -764,6 +793,22 @@ async def chat_completions(request: ChatCompletionRequest):
             try:
                 response_content = await chat_session.send_message(core_messages[-1].content)
                 logger.debug(f"Generated response content ({len(response_content)} chars) for request {request_id}")
+            except ValueError as ve:
+                if "Task decomposition failed" in str(ve):
+                    logger.error(f"Task decomposition error for request {request_id}: {ve}")
+                    raise APIValidationError(
+                        str(ve),
+                        ErrorType.INVALID_REQUEST_ERROR,
+                        ErrorCode.INVALID_REQUEST,
+                        "messages"
+                    )
+                else:
+                    logger.error(f"Validation error for request {request_id}: {ve}")
+                    raise APIValidationError(
+                        str(ve),
+                        ErrorType.INVALID_REQUEST_ERROR,
+                        ErrorCode.INVALID_REQUEST
+                    )
             except Exception as generation_error:
                 logger.error(f"Error generating response for request {request_id}: {generation_error}")
                 raise APIValidationError(
