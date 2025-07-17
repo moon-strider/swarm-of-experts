@@ -27,11 +27,3 @@ class ProviderFactory:
             
         return provider_class(api_key=api_key, model=model, temperature=temperature, **kwargs)
         
-    @classmethod
-    def register(cls, name: str, provider_class: Type[LLMProvider]) -> None:
-        cls._providers[name.lower()] = provider_class
-        
-    @classmethod
-    def get_available_providers(cls) -> list[str]:
-        return list(cls._providers.keys())
-        

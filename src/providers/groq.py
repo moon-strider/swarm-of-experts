@@ -1,8 +1,8 @@
-from typing import Iterator, List, Optional
+from typing import Iterator, List
 from langchain_groq import ChatGroq
-from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
 
 from .base import LLMProvider, Message
+from src.utils.message_converter import convert_messages
 
 
 class GroqProvider(LLMProvider):
@@ -25,20 +25,10 @@ class GroqProvider(LLMProvider):
         
         self._client = ChatGroq(**client_kwargs)
         
-    def _convert_messages(self, messages: List[Message]):
-        converted = []
-        for msg in messages:
-            if msg.role == "user":
-                converted.append(HumanMessage(content=msg.content))
-            elif msg.role == "assistant":
-                converted.append(AIMessage(content=msg.content))
-            elif msg.role == "system":
-                converted.append(SystemMessage(content=msg.content))
-        return converted
         
     def generate(self, messages: List) -> str:
         try:
-            langchain_messages = self._convert_messages(messages)
+            langchain_messages = convert_messages(messages)
             response = self._client.invoke(langchain_messages)
             return response.content
         except Exception as e:
@@ -46,16 +36,9 @@ class GroqProvider(LLMProvider):
         
     def stream(self, messages: List) -> Iterator[str]:
         try:
-            langchain_messages = self._convert_messages(messages)
+            langchain_messages = convert_messages(messages)
             for chunk in self._client.stream(langchain_messages):
                 if chunk.content:
                     yield chunk.content
         except Exception as e:
             raise RuntimeError(f"Failed to stream response from Groq: {str(e)}")
-                
-    def validate_model(self) -> bool:
-        return self.model in self.MODELS
-        
-    @property
-    def available_models(self) -> List[str]:
-        return self.MODELS

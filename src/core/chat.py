@@ -1,6 +1,4 @@
-from typing import Iterator, Optional, AsyncIterator, Dict, List
-import asyncio
-import json
+from typing import Optional, AsyncIterator, Dict, List
 import re
 from xml.sax.saxutils import escape
 from ..providers.base import LLMProvider, Message
@@ -138,9 +136,6 @@ class ChatSession:
     def clear_history(self) -> None:
         self.history.clear()
         
-    def get_history_length(self) -> int:
-        return len(self.history)
-    
     def cleanup(self):
         if self.executor:
             self.executor.close()

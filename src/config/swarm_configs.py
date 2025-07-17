@@ -120,7 +120,3 @@ def get_swarm_config(name: str) -> SwarmConfig:
 
 def get_all_swarm_configs() -> dict:
     return SWARM_CONFIGS
-
-
-def get_multi_generator_swarm_configs() -> dict:
-    return {name: config for name, config in SWARM_CONFIGS.items() if len(config.generators) > 1}

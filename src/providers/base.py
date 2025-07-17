@@ -10,9 +10,6 @@ class Message:
     content: str
     timestamp: Optional[datetime] = field(default_factory=datetime.now)
     metadata: dict = field(default_factory=dict)
-    
-    def to_dict(self) -> Dict[str, str]:
-        return {"role": self.role, "content": self.content}
 
 
 class LLMProvider(ABC):
@@ -29,13 +26,4 @@ class LLMProvider(ABC):
         
     @abstractmethod
     def stream(self, messages: List[Message]) -> Iterator[str]:
-        pass
-        
-    @abstractmethod
-    def validate_model(self) -> bool:
-        pass
-        
-    @property
-    @abstractmethod
-    def available_models(self) -> List[str]:
         pass

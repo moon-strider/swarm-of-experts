@@ -40,7 +40,6 @@ from .schemas import (
     PromptTokensDetails,
     CompletionTokensDetails
 )
-from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -937,35 +936,6 @@ async def request_validation_exception_handler(request: Request, exc: RequestVal
         param = field_path
     else:
         message = "Invalid request format"
-        param = None
-    
-    error_response = ErrorResponse(
-        error=ErrorDetail(
-            message=message,
-            type=ErrorType.INVALID_REQUEST_ERROR.value,
-            code=ErrorCode.VALIDATION_ERROR.value,
-            param=param
-        )
-    )
-    
-    from fastapi.responses import JSONResponse
-    return JSONResponse(
-        status_code=400,
-        content=error_response.error.model_dump()
-    )
-
-
-@app.exception_handler(PydanticValidationError)
-async def pydantic_validation_exception_handler(request: Request, exc: PydanticValidationError):
-    logger.warning(f"Pydantic validation error on {request.method} {request.url}: {exc}")
-    first_error = exc.errors()[0] if exc.errors() else None
-    
-    if first_error:
-        field_path = " -> ".join(str(loc) for loc in first_error['loc'])
-        message = f"Validation error in field '{field_path}': {first_error['msg']}"
-        param = field_path
-    else:
-        message = "Invalid data format"
         param = None
     
     error_response = ErrorResponse(

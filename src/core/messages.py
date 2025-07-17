@@ -22,6 +22,3 @@ class MessageHistory:
         
     def __len__(self) -> int:
         return len(self._messages)
-        
-    def __iter__(self):
-        return iter(self._messages)
