@@ -93,3 +93,13 @@ def get_swarm_config(name: str) -> SwarmConfig:
     if name not in SWARM_CONFIGS:
         raise ValueError(f"Unknown swarm config: {name}. Available: {list(SWARM_CONFIGS.keys())}")
     return SWARM_CONFIGS[name]
+
+
+def get_all_swarm_configs() -> dict:
+    """Get all available swarm configurations"""
+    return SWARM_CONFIGS
+
+
+def get_parallel_swarm_configs() -> dict:
+    """Get only parallel swarm configurations"""
+    return {name: config for name, config in SWARM_CONFIGS.items() if config.is_parallel}

@@ -10,28 +10,27 @@ from ..config.settings import settings
 
 
 class ChatSession:
-    def __init__(self, provider: LLMProvider, max_history: Optional[int] = None, swarm_config: Optional[SwarmConfig] = None):
-        self.provider = provider
+    def __init__(self, max_history: Optional[int] = None, swarm_config: Optional[SwarmConfig] = None):
         self.swarm_config = swarm_config
         self.history = MessageHistory(max_messages=max_history)
         self.factory = ProviderFactory()
         self.executor = None
         
-        if self.swarm_config and self.swarm_config.is_parallel:
+        if self.swarm_config:
             self.executor = ParallelExecutor(self.factory)
         
-    def send_message(self, message: str) -> str:
+    async def send_message(self, message: str) -> str:
         self.history.add_message("user", message)
         
         try:
-            if self.swarm_config and self.swarm_config.is_parallel:
-                loop = asyncio.get_event_loop()
-                responses = loop.run_until_complete(
-                    self.executor.execute_parallel(
-                        self.swarm_config,
-                        self.history.get_messages(),
-                        stream=False
-                    )
+            if not self.swarm_config:
+                raise ValueError("Swarm config is required")
+                
+            if self.swarm_config.is_parallel:
+                responses = await self.executor.execute_parallel(
+                    self.swarm_config,
+                    self.history.get_messages(),
+                    stream=False
                 )
                 
                 merger_api_key = settings.get_api_key_for_provider(self.swarm_config.merger.provider)
@@ -44,7 +43,15 @@ class ChatSession:
                 merger = ResponseMerger(merger_provider, self.swarm_config)
                 response = merger.merge_responses(message, responses)
             else:
-                response = self.provider.generate(self.history.get_messages())
+                generator = self.swarm_config.generators[0]
+                api_key = settings.get_api_key_for_provider(generator.provider)
+                provider = self.factory.create(
+                    generator.provider,
+                    api_key=api_key,
+                    model=generator.model,
+                    temperature=generator.temperature
+                )
+                response = provider.generate(self.history.get_messages())
             
             self.history.add_message("assistant", response)
             return response
@@ -52,21 +59,21 @@ class ChatSession:
         except Exception as e:
             raise Exception(f"Failed to get response: {str(e)}")
         
-    def stream_message(self, message: str) -> Iterator[str]:
+    def stream_message(self, message: str):
         self.history.add_message("user", message)
         
         full_response = []
         
         try:
-            if self.swarm_config and self.swarm_config.is_parallel:
-                loop = asyncio.get_event_loop()
-                responses = loop.run_until_complete(
-                    self.executor.execute_parallel(
-                        self.swarm_config,
-                        self.history.get_messages(),
-                        stream=False
-                    )
-                )
+            if not self.swarm_config:
+                raise ValueError("Swarm config is required")
+                
+            if self.swarm_config.is_parallel:
+                responses = asyncio.run(self.executor.execute_parallel(
+                    self.swarm_config,
+                    self.history.get_messages(),
+                    stream=False
+                ))
                 
                 merger_api_key = settings.get_api_key_for_provider(self.swarm_config.merger.provider)
                 merger_provider = self.factory.create(
@@ -81,7 +88,16 @@ class ChatSession:
                     full_response.append(chunk)
                     yield chunk
             else:
-                for chunk in self.provider.stream(self.history.get_messages()):
+                generator = self.swarm_config.generators[0]
+                api_key = settings.get_api_key_for_provider(generator.provider)
+                provider = self.factory.create(
+                    generator.provider,
+                    api_key=api_key,
+                    model=generator.model,
+                    temperature=generator.temperature
+                )
+                
+                for chunk in provider.stream(self.history.get_messages()):
                     full_response.append(chunk)
                     yield chunk
             

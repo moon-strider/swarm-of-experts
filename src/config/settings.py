@@ -18,7 +18,10 @@ class Settings:
     temperature: float = 0.7
     max_tokens: Optional[int] = None
     stream: bool = True
-    swarm_config_name: str = "basic"
+    swarm_config_name: str = "groq-swarm"
+    server_host: str = "0.0.0.0"
+    server_port: int = 8000
+    server_workers: int = 1
     
     def __post_init__(self):
         self.openai_api_key = os.getenv('OPENAI_API_KEY')
@@ -33,6 +36,12 @@ class Settings:
             self.temperature = float(env_temp)
         if env_tokens := os.getenv('MAX_TOKENS'):
             self.max_tokens = int(env_tokens)
+        if env_host := os.getenv('SERVER_HOST'):
+            self.server_host = env_host
+        if env_port := os.getenv('SERVER_PORT'):
+            self.server_port = int(env_port)
+        if env_workers := os.getenv('SERVER_WORKERS'):
+            self.server_workers = int(env_workers)
             
     def validate(self) -> tuple[bool, str]:
         if not any([self.openai_api_key, self.anthropic_api_key, self.google_api_key, self.deepseek_api_key, self.groq_api_key]):

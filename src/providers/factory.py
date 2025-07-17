@@ -16,6 +16,9 @@ class ProviderFactory:
         "groq": GroqProvider,
     }
     
+    def __init__(self):
+        pass
+    
     @classmethod
     def create(cls, provider_name: str, api_key: str, model: str, **kwargs) -> LLMProvider:
         provider_class = cls._providers.get(provider_name.lower())
