@@ -579,22 +579,11 @@ def _convert_messages(messages: List[ChatMessage]) -> List[CoreChatMessage]:
     return converted
 
 
-def _sanitize_input(text: str) -> str:
-    if not text:
+def _validate_input(text: str) -> str:
+    """Basic input validation - just ensure it's a string and not None"""
+    if not isinstance(text, str):
         return ""
-    
-    import re
-    
-    text = re.sub(r'[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]', '', text)
-    text = re.sub(r'\s{100,}', ' ' * 100, text)
-    text = re.sub(r'<script[^>]*>.*?</script>', '', text, flags=re.IGNORECASE | re.DOTALL)
-    text = re.sub(r'<(iframe|object|embed|form)[^>]*>.*?</\1>', '', text, flags=re.IGNORECASE | re.DOTALL)
-    
-    if len(text) > 1000000:
-        logger.warning(f"Input text truncated from {len(text)} to 1MB")
-        text = text[:1000000] + "...[truncated]"
-    
-    return text.strip()
+    return text
 
 
 async def _stream_response(
@@ -612,7 +601,7 @@ async def _stream_response(
         
         sanitized_messages = []
         for msg in messages:
-            sanitized_content = _sanitize_input(msg.content)
+            sanitized_content = _validate_input(msg.content)
             sanitized_messages.append(CoreChatMessage(
                 role=msg.role,
                 content=sanitized_content,
@@ -630,12 +619,11 @@ async def _stream_response(
         logger.debug(f"Starting message streaming for: {sanitized_messages[-1].content[:100]}...")
         
         try:
-            for chunk in chat_session.stream_message(sanitized_messages[-1].content):
+            async for chunk in chat_session.stream_message(sanitized_messages[-1].content):
                 if chunk:
-                    sanitized_chunk = _sanitize_input(chunk)
-                    accumulated_content += sanitized_chunk
+                    accumulated_content += chunk
                     
-                    delta = ChatCompletionChoiceDelta(content=sanitized_chunk)
+                    delta = ChatCompletionChoiceDelta(content=chunk)
                     choice = ChatCompletionChoice(
                         index=0,
                         delta=delta,
@@ -727,7 +715,7 @@ async def chat_completions(request: ChatCompletionRequest):
         
         sanitized_messages = []
         for msg in request.messages:
-            sanitized_content = _sanitize_input(msg.content)
+            sanitized_content = _validate_input(msg.content)
             sanitized_messages.append(ChatMessage(
                 role=msg.role,
                 content=sanitized_content
@@ -778,7 +766,6 @@ async def chat_completions(request: ChatCompletionRequest):
             
             try:
                 response_content = await chat_session.send_message(core_messages[-1].content)
-                response_content = _sanitize_input(response_content)
                 logger.debug(f"Generated response content ({len(response_content)} chars) for request {request_id}")
             except Exception as generation_error:
                 logger.error(f"Error generating response for request {request_id}: {generation_error}")

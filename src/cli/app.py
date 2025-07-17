@@ -1,4 +1,5 @@
 import sys
+import asyncio
 from typing import Optional
 
 from ..config.settings import settings
@@ -78,7 +79,7 @@ class CLIApp:
                 )
                 self.ui.print_success(f"\n✓ Using {gen.model}")
 
-            self.chat_session = ChatSession(provider, swarm_config=self.swarm_config)
+            self.chat_session = ChatSession(swarm_config=self.swarm_config)
 
             self.ui.print_info("\nCommands:")
             self.ui.print_info("  - Type 'exit' or 'quit' to end the conversation")
@@ -130,13 +131,22 @@ class CLIApp:
 
                     if settings.stream:
                         first_chunk = True
-                        for chunk in self.chat_session.stream_message(user_input):
+                        
+                        # Convert async generator to sync generator for CLI consumption
+                        async def collect_chunks():
+                            chunks = []
+                            async for chunk in self.chat_session.stream_message(user_input):
+                                chunks.append(chunk)
+                            return chunks
+                        
+                        chunks = asyncio.run(collect_chunks())
+                        for chunk in chunks:
                             if first_chunk:
                                 animation.stop()
                                 first_chunk = False
                             print(self.ui.theme.assistant_text(chunk), end='', flush=True)
                     else:
-                        response = self.chat_session.send_message(user_input)
+                        response = asyncio.run(self.chat_session.send_message(user_input))
                         animation.stop()
                         print(self.ui.theme.assistant_text(response))
 

@@ -1,4 +1,4 @@
-from typing import Iterator, Optional
+from typing import Iterator, Optional, AsyncIterator
 import asyncio
 from ..providers.base import LLMProvider
 from .messages import MessageHistory
@@ -59,7 +59,7 @@ class ChatSession:
         except Exception as e:
             raise Exception(f"Failed to get response: {str(e)}")
         
-    def stream_message(self, message: str):
+    async def stream_message(self, message: str) -> AsyncIterator[str]:
         self.history.add_message("user", message)
         
         full_response = []
@@ -69,11 +69,11 @@ class ChatSession:
                 raise ValueError("Swarm config is required")
                 
             if self.swarm_config.is_parallel:
-                responses = asyncio.run(self.executor.execute_parallel(
+                responses = await self.executor.execute_parallel(
                     self.swarm_config,
                     self.history.get_messages(),
                     stream=False
-                ))
+                )
                 
                 merger_api_key = settings.get_api_key_for_provider(self.swarm_config.merger.provider)
                 merger_provider = self.factory.create(

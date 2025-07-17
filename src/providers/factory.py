@@ -46,6 +46,6 @@ class ProviderFactory:
             return "google"
         elif model_lower.startswith("deepseek"):
             return "deepseek"
-        elif model_lower.startswith(("deepseek-r1", "kimi", "llama", "mixtral", "gemma")):
+        elif model_lower.startswith(("deepseek-r1", "moonshot", "llama", "mixtral", "gemma")):
             return "groq"
         return None

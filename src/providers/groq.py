@@ -8,7 +8,7 @@ from .base import LLMProvider, Message
 class GroqProvider(LLMProvider):
     MODELS = [
         "deepseek-r1-distill-llama-70b",
-        "kimi-k2-instruct",
+        "moonshotai/kimi-k2-instruct",
         "gemma2-9b-it",
     ]
     

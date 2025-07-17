@@ -113,7 +113,7 @@ class ParallelExecutor:
 
             logger.info(f"Executing {gen_config.provider}/{gen_config.model}")
 
-            loop = asyncio.get_event_loop()
+            loop = asyncio.get_running_loop()
 
             if stream:
                 chunks = []
