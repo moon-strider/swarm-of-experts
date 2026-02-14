@@ -63,7 +63,7 @@ class APIValidator:
         
         try:
             swarm_config = get_swarm_config(model)
-        except ValueError as e:
+        except ValueError:
             raise APIValidationError(
                 f"Model '{model}' not found. Available models: {list(get_available_models())}",
                 ErrorType.INVALID_REQUEST_ERROR,
@@ -84,7 +84,7 @@ class APIValidator:
     def validate_providers(model: str) -> None:
         try:
             swarm_config = get_swarm_config(model)
-        except ValueError as e:
+        except ValueError:
             raise APIValidationError(
                 f"Model '{model}' not found",
                 ErrorType.INVALID_REQUEST_ERROR,
@@ -357,7 +357,7 @@ class SessionManager:
             for session_key in session_keys:
                 self._cleanup_session(session_key)
         
-        logger.info(f"Session manager shutdown complete")
+        logger.info("Session manager shutdown complete")
     
     def get_session_stats(self) -> Dict[str, Any]:
         with self._lock:

@@ -1,7 +1,7 @@
 import pytest
 from unittest.mock import patch, MagicMock, AsyncMock
 from fastapi.middleware.cors import CORSMiddleware
-from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
+from langchain_core.messages import HumanMessage, AIMessage
 
 from src.api.schemas import (
     ChatCompletionRequest, ChatMessage, Role,
@@ -310,5 +310,5 @@ class TestAPIEndpoints:
         assert "text/event-stream" in response.headers["content-type"]
 
         lines = response.text.strip().split("\n")
-        data_lines = [l for l in lines if l.startswith("data: ") and l != "data: [DONE]"]
+        data_lines = [line for line in lines if line.startswith("data: ") and line != "data: [DONE]"]
         assert len(data_lines) >= 2

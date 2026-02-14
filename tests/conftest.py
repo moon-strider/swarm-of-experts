@@ -1,6 +1,5 @@
-import os
 import pytest
-from unittest.mock import patch, MagicMock, AsyncMock
+from unittest.mock import MagicMock, AsyncMock
 
 from src.config.swarm_configs import SwarmConfig, GeneratorConfig
 

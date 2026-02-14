@@ -62,11 +62,10 @@ class CLIApp:
 
             if self.swarm_config.has_merger:
                 self.ui.print_success(f"\n✓ Initialized swarm mode with {len(self.swarm_config.generators)} models")
-                provider = None
             else:
                 gen = self.swarm_config.generators[0]
                 api_key = settings.get_api_key_for_provider(gen.provider)
-                provider = factory.create(
+                factory.create(
                     gen.provider,
                     api_key=api_key,
                     model=gen.model,

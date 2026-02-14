@@ -5,7 +5,7 @@ from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
 from src.core.messages import MessageHistory
 from src.core.executor import ParallelExecutor, GeneratorResponse
 from src.core.merger import ResponseMerger
-from src.config.swarm_configs import SwarmConfig, GeneratorConfig
+from src.config.swarm_configs import GeneratorConfig
 
 
 class TestMessageHistory:
