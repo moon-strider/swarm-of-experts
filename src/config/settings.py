@@ -51,20 +51,22 @@ class Settings:
     def get_swarm_config(self) -> SwarmConfig:
         return get_swarm_config(self.swarm_config_name)
     
-    def get_api_key_for_provider(self, provider_name: str) -> Optional[str]:
-        provider_lower = provider_name.lower()
-        if provider_lower == "openai":
-            return self.openai_api_key
-        elif provider_lower == "anthropic":
-            return self.anthropic_api_key
-        elif provider_lower == "google":
-            return self.google_api_key
-        elif provider_lower == "deepseek":
-            return self.deepseek_api_key
-        elif provider_lower == "groq":
-            return self.groq_api_key
-        else:
+    def get_api_key_for_provider(self, provider_name: str) -> str:
+        provider_map = {
+            "openai": self.openai_api_key,
+            "anthropic": self.anthropic_api_key,
+            "google": self.google_api_key,
+            "deepseek": self.deepseek_api_key,
+            "groq": self.groq_api_key,
+        }
+
+        normalized = provider_name.lower()
+        if normalized not in provider_map:
             raise ValueError(f"Unknown provider: {provider_name}")
+        key = provider_map[normalized]
+        if not key:
+            raise ValueError(f"API key not found for provider: {provider_name}")
+        return key
 
 
 settings = Settings()

@@ -1,10 +1,10 @@
 import asyncio
 import logging
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, AsyncIterator
 from dataclasses import dataclass
 import time
 
-from ..providers.base import Message
+from langchain_core.messages import BaseMessage, HumanMessage
 from ..providers.factory import ProviderFactory
 from ..config.swarm_configs import GeneratorConfig, SwarmConfig
 from ..config.settings import settings
@@ -28,7 +28,7 @@ class ParallelExecutor:
     async def execute_parallel(
         self, 
         swarm_config: SwarmConfig,
-        messages: List[Message],
+        messages: List[BaseMessage],
         stream: bool = False,
         sub_prompts: Optional[Dict[str, str]] = None
     ) -> List[GeneratorResponse]:
@@ -47,7 +47,7 @@ class ParallelExecutor:
         for i, gen_config in enumerate(swarm_config.generators):
             gen_messages = messages
             if sub_prompts:
-                gen_messages = [Message("user", sub_prompt_values[i])]
+                gen_messages = [HumanMessage(content=sub_prompt_values[i])]
             
             task = asyncio.create_task(
                 self._execute_single_generator(
@@ -88,7 +88,7 @@ class ParallelExecutor:
     async def _execute_single_generator(
         self,
         gen_config: GeneratorConfig,
-        messages: List[Message],
+        messages: List[BaseMessage],
         stream: bool
     ) -> GeneratorResponse:
         
@@ -108,11 +108,11 @@ class ParallelExecutor:
 
             if stream:
                 chunks = []
-                for chunk in provider.stream(messages):
+                async for chunk in provider.stream(messages):
                     chunks.append(chunk)
                 content = "".join(chunks)
             else:
-                content = provider.generate(messages)
+                content = await provider.generate(messages)
 
             elapsed = time.time() - start_time
             logger.info(f"{gen_config.provider}/{gen_config.model} completed in {elapsed:.2f}s")
@@ -133,7 +133,7 @@ class ParallelExecutor:
                 error=str(e)
             )
 
-    async def stream_parallel(self, swarm_config: SwarmConfig, messages: List[Message], sub_prompts: Optional[Dict[str, str]] = None):
+    async def stream_parallel(self, swarm_config: SwarmConfig, messages: List[BaseMessage], sub_prompts: Optional[Dict[str, str]] = None) -> AsyncIterator[str]:
         """Stream responses from the first generator (for single-generator configs)"""
         if not swarm_config.generators:
             return
@@ -148,7 +148,7 @@ class ParallelExecutor:
             sub_prompt_value = sub_prompts["sub_prompt_1"]
             if not sub_prompt_value.strip():
                 raise ValueError("Empty sub-prompt for generator 1")
-            gen_messages = [Message("user", sub_prompt_value)]
+            gen_messages = [HumanMessage(content=sub_prompt_value)]
         
         try:
             api_key = settings.get_api_key_for_provider(gen_config.provider)
@@ -161,7 +161,7 @@ class ParallelExecutor:
             
             logger.info(f"Streaming from {gen_config.provider}/{gen_config.model}")
             
-            for chunk in provider.stream(gen_messages):
+            async for chunk in provider.stream(gen_messages):
                 yield chunk
                 
         except Exception as e:

@@ -30,9 +30,10 @@ class CLIApp:
         clear_screen()
         self.ui.print_header()
 
-        if not settings.validate():
-            self.ui.print_error("No API keys found in environment variables")
-            self.ui.print_info("Please set at least one of: OPENAI_API_KEY, ANTHROPIC_API_KEY, GOOGLE_API_KEY, DEEPSEEK_API_KEY")
+        is_valid, error_msg = settings.validate()
+        if not is_valid:
+            self.ui.print_error(error_msg or "No API keys found in environment variables")
+            self.ui.print_info("Please set at least one of: OPENAI_API_KEY, ANTHROPIC_API_KEY, GOOGLE_API_KEY, DEEPSEEK_API_KEY, GROQ_API_KEY")
             return False
 
         self.ui.print_info("\nAvailable configurations:")
@@ -126,19 +127,16 @@ class CLIApp:
 
                     if settings.stream:
                         first_chunk = True
-                        
-                        async def collect_chunks():
-                            chunks = []
+
+                        async def stream_and_print():
+                            nonlocal first_chunk
                             async for chunk in self.chat_session.stream_message(user_input):
-                                chunks.append(chunk)
-                            return chunks
-                        
-                        chunks = asyncio.run(collect_chunks())
-                        for chunk in chunks:
-                            if first_chunk:
-                                animation.stop()
-                                first_chunk = False
-                            print(self.ui.theme.assistant_text(chunk), end='', flush=True)
+                                if first_chunk:
+                                    animation.stop()
+                                    first_chunk = False
+                                print(self.ui.theme.assistant_text(chunk), end='', flush=True)
+
+                        asyncio.run(stream_and_print())
                     else:
                         response = asyncio.run(self.chat_session.send_message(user_input))
                         animation.stop()

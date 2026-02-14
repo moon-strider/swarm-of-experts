@@ -1,15 +1,8 @@
 from abc import ABC, abstractmethod
-from typing import Iterator, List, Optional
+from typing import AsyncIterator, Iterator, List, Optional
 from dataclasses import dataclass, field
 from datetime import datetime
-
-
-@dataclass
-class Message:
-    role: str
-    content: str
-    timestamp: Optional[datetime] = field(default_factory=datetime.now)
-    metadata: dict = field(default_factory=dict)
+from langchain_core.messages import BaseMessage
 
 
 class LLMProvider(ABC):
@@ -20,20 +13,16 @@ class LLMProvider(ABC):
         self.max_tokens = kwargs.get('max_tokens', None)
         self.streaming_enabled = kwargs.get('stream', True)
         
-    def generate(self, messages: List[Message]) -> str:
+    async def generate(self, messages: List[BaseMessage]) -> str:
         try:
-            from ..utils.message_converter import convert_messages
-            langchain_messages = convert_messages(messages)
-            response = self._client.invoke(langchain_messages)
+            response = await self._client.ainvoke(messages)
             return response.content
         except Exception as e:
             raise RuntimeError(f"Failed to generate response from {self.__class__.__name__}: {str(e)}")
         
-    def stream(self, messages: List[Message]) -> Iterator[str]:
+    async def stream(self, messages: List[BaseMessage]) -> AsyncIterator[str]:
         try:
-            from ..utils.message_converter import convert_messages
-            langchain_messages = convert_messages(messages)
-            for chunk in self._client.stream(langchain_messages):
+            async for chunk in self._client.astream(messages):
                 if chunk.content:
                     yield chunk.content
         except Exception as e:

@@ -1,8 +1,9 @@
 import logging
-from typing import List, Optional
+from typing import List, Optional, AsyncIterator
 from xml.sax.saxutils import escape
 
-from ..providers.base import LLMProvider, Message
+from langchain_core.messages import BaseMessage, HumanMessage
+from ..providers.base import LLMProvider
 from ..config.swarm_configs import SwarmConfig
 from .executor import GeneratorResponse
 
@@ -13,11 +14,11 @@ class ResponseMerger:
         self.provider = provider
         self.swarm_config = swarm_config
 
-    def merge_responses(
-        self, 
+    async def merge_responses(
+        self,
         user_query: str,
         responses: List[GeneratorResponse],
-        history: Optional[List[Message]] = None
+        history: Optional[List[BaseMessage]] = None
     ) -> str:
         valid_responses = [r for r in responses if not r.error and r.content]
 
@@ -39,24 +40,24 @@ class ResponseMerger:
         logger.info(f"Merging {len(valid_responses)} responses")
 
         if history:
-            messages = history[:-1] + [Message(role="user", content=merger_prompt)]
+            messages = history[:-1] + [HumanMessage(content=merger_prompt)]
         else:
-            messages = [Message(role="user", content=merger_prompt)]
+            messages = [HumanMessage(content=merger_prompt)]
 
         try:
-            merged_response = self.provider.generate(messages)
+            merged_response = await self.provider.generate(messages)
             logger.info("Successfully merged responses")
             return merged_response
         except Exception as e:
             logger.error(f"Merger failed: {e}")
             return self._select_best_fallback(valid_responses)
 
-    def stream_merge_responses(
+    async def stream_merge_responses(
         self,
         user_query: str,
         responses: List[GeneratorResponse],
-        history: Optional[List[Message]] = None
-    ):
+        history: Optional[List[BaseMessage]] = None
+    ) -> AsyncIterator[str]:
         valid_responses = [r for r in responses if not r.error and r.content]
 
         if not valid_responses:
@@ -73,12 +74,12 @@ class ResponseMerger:
         )
 
         if history:
-            messages = history[:-1] + [Message(role="user", content=merger_prompt)]
+            messages = history[:-1] + [HumanMessage(content=merger_prompt)]
         else:
-            messages = [Message(role="user", content=merger_prompt)]
+            messages = [HumanMessage(content=merger_prompt)]
 
         try:
-            for chunk in self.provider.stream(messages):
+            async for chunk in self.provider.stream(messages):
                 yield chunk
         except Exception as e:
             logger.error(f"Streaming merger failed: {e}")

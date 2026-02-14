@@ -1,7 +1,7 @@
 from typing import Optional, AsyncIterator, Dict, List
 import re
 from xml.sax.saxutils import escape
-from ..providers.base import Message
+from langchain_core.messages import BaseMessage, HumanMessage
 from .messages import MessageHistory
 from ..config.swarm_configs import SwarmConfig, TASKMASTER_PROMPT_TEMPLATE
 from .executor import ParallelExecutor
@@ -17,9 +17,9 @@ class ChatSession:
         self.factory = ProviderFactory()
         self.executor = ParallelExecutor(self.factory) if swarm_config else None
     
-    async def _decompose_task(self, messages: List[Message]) -> Dict[str, str]:
+    async def _decompose_task(self, messages: List[BaseMessage]) -> Dict[str, str]:
         taskmaster_prompt = TASKMASTER_PROMPT_TEMPLATE.format(user_query=escape(messages[-1].content))
-        taskmaster_messages = messages[:-1] + [Message("user", taskmaster_prompt)]
+        taskmaster_messages = messages[:-1] + [HumanMessage(content=taskmaster_prompt)]
         
         taskmaster_api_key = settings.get_api_key_for_provider(self.swarm_config.taskmaster.provider)
         if not taskmaster_api_key:
@@ -33,7 +33,7 @@ class ChatSession:
         )
         
         try:
-            decomposition_response = taskmaster_provider.generate(taskmaster_messages)
+            decomposition_response = await taskmaster_provider.generate(taskmaster_messages)
         except Exception as e:
             raise RuntimeError(f"Taskmaster decomposition failed: {str(e)}")
         
@@ -76,7 +76,7 @@ class ChatSession:
                     temperature=self.swarm_config.merger.temperature
                 )
                 merger = ResponseMerger(merger_provider, self.swarm_config)
-                response = merger.merge_responses(message, responses, history=self.history.get_messages())
+                response = await merger.merge_responses(message, responses, history=self.history.get_messages())
             else:
                 response = responses[0].content if responses else ""
             
@@ -116,7 +116,7 @@ class ChatSession:
                 )
                 merger = ResponseMerger(merger_provider, self.swarm_config)
                 
-                for chunk in merger.stream_merge_responses(message, responses, history=self.history.get_messages()):
+                async for chunk in merger.stream_merge_responses(message, responses, history=self.history.get_messages()):
                     full_response.append(chunk)
                     yield chunk
             else:

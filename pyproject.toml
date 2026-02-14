@@ -7,6 +7,7 @@ name = "swarm-of-experts"
 version = "0.1.0"
 description = "A swarm of experts implementation using FastAPI and LangChain"
 readme = "README.md"
+license = "MIT"
 requires-python = ">=3.11"
 authors = [
     { name = "moon-strider" }
@@ -25,5 +26,25 @@ dependencies = [
     "python-dotenv==1.1.1"
 ]
 
+[project.optional-dependencies]
+test = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.23",
+    "pytest-cov>=5.0",
+    "httpx>=0.27",
+    "ruff>=0.5",
+]
+
+[project.scripts]
+swarm-of-experts = "main:main"
+
 [tool.hatch.build.targets.wheel]
 packages = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+
+[tool.ruff]
+target-version = "py311"
+line-length = 120

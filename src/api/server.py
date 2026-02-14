@@ -17,8 +17,8 @@ import hashlib
 from ..config.settings import Settings
 from ..config.swarm_configs import get_swarm_config, get_all_swarm_configs
 from ..core.chat import ChatSession
-from ..providers.base import Message as CoreMessage
 from ..providers.factory import ProviderFactory
+from langchain_core.messages import HumanMessage, AIMessage, SystemMessage, BaseMessage
 from .schemas import (
     ChatCompletionRequest,
     ChatCompletionResponse,
@@ -223,12 +223,12 @@ class TokenEstimator:
         return int(token_estimate)
     
     @staticmethod
-    def estimate_messages_tokens(messages: List[CoreMessage]) -> int:
+    def estimate_messages_tokens(messages: List[BaseMessage]) -> int:
         total_tokens = 0
         
         for message in messages:
             content_tokens = TokenEstimator.estimate_tokens(message.content)
-            role_tokens = TokenEstimator.estimate_tokens(message.role)
+            role_tokens = TokenEstimator.estimate_tokens(message.type)
             structure_overhead = 3
             total_tokens += content_tokens + role_tokens + structure_overhead
         
@@ -337,7 +337,7 @@ class SessionManager:
             except Exception as e:
                 logger.error(f"Error during background cleanup: {e}")
             
-            self._shutdown_event.wait(timeout=self.cleanup_interval_minutes * 300)
+            self._shutdown_event.wait(timeout=self.cleanup_interval_minutes * 60)
     
     def start_cleanup_task(self):
         if self._cleanup_task is None or not self._cleanup_task.is_alive():
@@ -573,13 +573,21 @@ async def force_session_cleanup():
         raise HTTPException(status_code=500, detail=error_response.error.model_dump())
 
 
-def _convert_messages(messages: List[ChatMessage]) -> List[CoreMessage]:
+def _convert_messages(messages: List[ChatMessage]) -> List[BaseMessage]:
     converted = []
     for msg in messages:
-        converted.append(CoreMessage(
-            role=msg.role.value,
-            content=msg.content
-        ))
+        additional_kwargs = {}
+        if msg.name:
+            additional_kwargs["name"] = msg.name
+        
+        if msg.role == Role.USER:
+            converted.append(HumanMessage(content=msg.content, additional_kwargs=additional_kwargs))
+        elif msg.role == Role.ASSISTANT:
+            converted.append(AIMessage(content=msg.content, additional_kwargs=additional_kwargs))
+        elif msg.role == Role.SYSTEM:
+            converted.append(SystemMessage(content=msg.content, additional_kwargs=additional_kwargs))
+        else:
+            raise ValueError(f"Unsupported role: {msg.role}")
     return converted
 
 
@@ -591,7 +599,7 @@ def _validate_input(text: str) -> str:
 
 async def _stream_response(
     chat_session: ChatSession,
-    messages: List[CoreMessage],
+    messages: List[BaseMessage],
     model: str,
     request_id: str,
     include_usage: bool = False
@@ -599,30 +607,24 @@ async def _stream_response(
     accumulated_content = ""
     chunk_index = 0
     
+    LANGCHAIN_ROLE_MAP = {"human": "user", "ai": "assistant", "system": "system"}
+
     try:
         logger.info(f"Starting streaming response for request {request_id} with model {model}")
-        
-        sanitized_messages = []
-        for msg in messages:
-            sanitized_content = _validate_input(msg.content)
-            sanitized_messages.append(CoreMessage(
-                role=msg.role,
-                content=sanitized_content,
-                timestamp=msg.timestamp
-            ))
-        
+
         current_history = chat_session.history.get_messages()
-        if len(current_history) == 0 or current_history[-1].content != sanitized_messages[-1].content:
-            logger.debug(f"Adding {len(sanitized_messages)} messages to session history")
-            for message in sanitized_messages:
-                chat_session.history.add_message(message.role, message.content)
+        if len(current_history) == 0 or current_history[-1].content != messages[-1].content:
+            logger.debug(f"Adding {len(messages)} messages to session history")
+            for message in messages:
+                role = LANGCHAIN_ROLE_MAP.get(message.type, message.type)
+                chat_session.history.add_message(role, message.content)
         else:
             logger.debug("Reusing existing session history")
-        
-        logger.debug(f"Starting message streaming for: {sanitized_messages[-1].content[:100]}...")
+
+        logger.debug(f"Starting message streaming for: {messages[-1].content[:100]}...")
         
         try:
-            async for chunk in chat_session.stream_message(sanitized_messages[-1].content):
+            async for chunk in chat_session.stream_message(messages[-1].content):
                 if chunk:
                     accumulated_content += chunk
                     
@@ -684,7 +686,7 @@ async def _stream_response(
         
         usage = None
         if include_usage:
-            prompt_tokens = TokenEstimator.estimate_messages_tokens(sanitized_messages)
+            prompt_tokens = TokenEstimator.estimate_messages_tokens(messages)
             completion_tokens = TokenEstimator.estimate_tokens(accumulated_content)
             total_tokens = prompt_tokens + completion_tokens
             
@@ -743,7 +745,21 @@ async def chat_completions(request: ChatCompletionRequest):
                 content=sanitized_content
             ))
         
-        core_messages = _convert_messages(sanitized_messages)
+        core_messages: List[BaseMessage] = []
+        for msg in request.messages:
+            additional_kwargs = {}
+            if msg.name:
+                additional_kwargs["name"] = msg.name
+            
+            if msg.role == Role.USER:
+                core_messages.append(HumanMessage(content=msg.content, additional_kwargs=additional_kwargs))
+            elif msg.role == Role.ASSISTANT:
+                core_messages.append(AIMessage(content=msg.content, additional_kwargs=additional_kwargs))
+            elif msg.role == Role.SYSTEM:
+                core_messages.append(SystemMessage(content=msg.content, additional_kwargs=additional_kwargs))
+            else:
+                raise ValueError(f"Unsupported role: {msg.role}")
+
         logger.debug(f"Converted {len(core_messages)} messages for request {request_id}")
         
         message_dicts = [{'role': msg.role.value, 'content': msg.content} for msg in sanitized_messages]
@@ -781,8 +797,10 @@ async def chat_completions(request: ChatCompletionRequest):
             current_history = chat_session.history.get_messages()
             if len(current_history) == 0 or current_history[-1].content != core_messages[-1].content:
                 logger.debug(f"Adding {len(core_messages)} messages to session history")
+                langchain_role_map = {"human": "user", "ai": "assistant", "system": "system"}
                 for message in core_messages:
-                    chat_session.history.add_message(message.role, message.content)
+                    role = langchain_role_map.get(message.type, message.type)
+                    chat_session.history.add_message(role, message.content)
             else:
                 logger.debug("Reusing existing session history")
             
