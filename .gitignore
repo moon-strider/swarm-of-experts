@@ -50,3 +50,13 @@ htmlcov/
 
 logs/
 *.log
+# Local inference and test output
+.openclaw-test/
+.wheel-check/
+state/
+results/
+*.sqlite
+*.sqlite3
+*.sqlite3-*
+*.maker.lock
+*.gguf

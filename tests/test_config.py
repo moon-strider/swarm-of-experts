@@ -1,120 +1,141 @@
+import json
+
 import pytest
-from src.config.swarm_configs import (
-    SwarmConfig, GeneratorConfig, get_swarm_config,
-    get_all_swarm_configs, SWARM_CONFIGS,
+from pydantic import ValidationError
+
+from swarm_of_experts.config import Generator, Limits, Provider, Settings, Swarm, load_settings
+from swarm_of_experts.models import ChatRequest
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "http://example.com/v1",
+        "ftp://127.0.0.1/v1",
+        "https://u:p@example.com",
+        "https://example.com/?key=secret",
+        "https://example.com/#fragment",
+        "relative",
+        "http://localhost.evil/v1",
+        "http://127.0.0.1:wrong/v1",
+    ],
 )
-from src.config.settings import Settings
+def test_endpoint_rejects_insecure_or_ambiguous_urls(url):
+    with pytest.raises(ValueError):
+        Provider(base_url=url)
 
 
-class TestSwarmConfig:
-    def test_has_merger_true(self, multi_generator_config):
-        assert multi_generator_config.has_merger is True
-
-    def test_has_merger_false(self, single_generator_config):
-        assert single_generator_config.has_merger is False
-
-    def test_has_taskmaster_true(self, taskmaster_config):
-        assert taskmaster_config.has_taskmaster is True
-
-    def test_has_taskmaster_false(self, single_generator_config):
-        assert single_generator_config.has_taskmaster is False
-
-    def test_generator_config_defaults(self):
-        gen = GeneratorConfig(provider="openai", model="gpt-4.1")
-        assert gen.temperature == 0.7
-
-    def test_swarm_config_defaults(self):
-        config = SwarmConfig(name="test")
-        assert config.generators == []
-        assert config.merger is None
-        assert config.taskmaster is None
-        assert config.max_context_tokens == 128000
+@pytest.mark.parametrize(
+    "url", ["http://127.0.0.1/v1", "http://[::1]/v1", "https://example.com/api/v1/"]
+)
+def test_endpoint_accepts_supported_urls(url):
+    assert Provider(base_url=url).base_url == url.rstrip("/")
 
 
-class TestGetSwarmConfig:
-    def test_valid_config(self):
-        config = get_swarm_config("basic")
-        assert config.name == "basic"
-        assert len(config.generators) == 1
-
-    def test_invalid_config_raises(self):
-        with pytest.raises(ValueError, match="Unknown swarm config"):
-            get_swarm_config("nonexistent-config")
-
-    def test_all_predefined_configs_valid(self):
-        for name in SWARM_CONFIGS:
-            config = get_swarm_config(name)
-            assert config.name == name
-            assert len(config.generators) > 0
-
-    def test_get_all_returns_dict(self):
-        all_configs = get_all_swarm_configs()
-        assert isinstance(all_configs, dict)
-        assert "basic" in all_configs
-        assert "groq-swarm" in all_configs
-
-    def test_groq_swarm_has_3_generators(self):
-        config = get_swarm_config("groq-swarm")
-        assert len(config.generators) == 3
-        assert config.has_merger is True
-
-    def test_groq_taskmaster_config(self):
-        config = get_swarm_config("groq-taskmaster")
-        assert config.has_taskmaster is True
-        assert config.has_merger is True
-        assert len(config.generators) == 3
+def test_keys_are_explicit_and_not_in_configuration_repr():
+    provider = Provider(base_url="https://example.com", api_key_env="TEST_KEY")
+    with pytest.raises(ValueError):
+        provider.key({})
+    assert provider.key({"TEST_KEY": "private-key"}) == "private-key"
+    assert Provider(base_url="http://localhost/v1").key({}) == "local"
+    config = load_settings(env={"SWARM_API_KEY": "private-key"})
+    assert "private-key" not in repr(config)
+    assert "private-key" not in config.model_dump_json()
 
 
-class TestSettings:
-    def test_no_keys_validation_fails(self):
-        s = Settings()
-        is_valid, msg = s.validate()
-        assert is_valid is False
-        assert "No API keys" in msg
+def test_local_defaults_and_no_automatic_dotenv(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / ".env").write_text("SWARM_API_KEY=not-loaded\n")
+    config = load_settings(env={"LLM_BASE_URL": "http://127.0.0.1:8080/v1", "LLM_MODEL": "small"})
+    assert config.default_swarm == "local-single"
+    assert len(config.swarms["local-swarm"].generators) == 3
+    assert config.api_key is None
+    with pytest.raises(ValueError):
+        load_settings(env={"LLM_BASE_URL": "http://127.0.0.1"})
 
-    def test_with_keys_validation_passes(self, fake_env):
-        s = Settings()
-        is_valid, msg = s.validate()
-        assert is_valid is True
-        assert msg == ""
 
-    def test_get_api_key_valid_provider(self, fake_env):
-        s = Settings()
-        assert s.get_api_key_for_provider("openai") == "sk-test-openai-key"
-        assert s.get_api_key_for_provider("groq") == "gsk-test-groq-key"
+def test_file_configuration_is_validated(tmp_path, settings):
+    path = tmp_path / "config.json"
+    path.write_text(settings.model_dump_json())
+    assert load_settings(path, {}) == settings
+    data = settings.model_dump()
+    data["default_swarm"] = "missing"
+    path.write_text(json.dumps(data))
+    with pytest.raises(ValueError):
+        load_settings(path, {})
+    path.write_text('{"api_key":"secret"}')
+    with pytest.raises(ValueError, match="SWARM_API_KEY"):
+        load_settings(path, {})
+    path.write_text("[]")
+    with pytest.raises(ValueError):
+        load_settings(path, {})
+    path.write_text(" " * 1_048_577)
+    with pytest.raises(ValueError):
+        load_settings(path, {})
 
-    def test_get_api_key_unknown_provider(self, fake_env):
-        s = Settings()
-        with pytest.raises(ValueError, match="Unknown provider"):
-            s.get_api_key_for_provider("unknown-provider")
 
-    def test_get_api_key_missing_key(self):
-        s = Settings()
-        with pytest.raises(ValueError, match="API key not found"):
-            s.get_api_key_for_provider("openai")
+def test_topology_and_references(settings):
+    gen = Generator(provider="local", model="x")
+    with pytest.raises(ValueError, match="merger"):
+        Swarm(generators=(gen, gen))
+    with pytest.raises(ValueError, match="min_success"):
+        Swarm(generators=(gen,), min_success=2)
+    data = settings.model_dump()
+    data["swarms"]["basic"]["generators"][0]["provider"] = "missing"
+    with pytest.raises(ValueError, match="Unknown provider"):
+        Settings.model_validate(data)
 
-    def test_env_overrides(self, monkeypatch):
-        monkeypatch.setenv("OPENAI_API_KEY", "test")
-        monkeypatch.setenv("DEFAULT_MODEL", "custom-model")
-        monkeypatch.setenv("TEMPERATURE", "0.9")
-        monkeypatch.setenv("MAX_TOKENS", "4096")
-        monkeypatch.setenv("SERVER_HOST", "127.0.0.1")
-        monkeypatch.setenv("SERVER_PORT", "9000")
 
-        s = Settings()
-        assert s.default_model == "custom-model"
-        assert s.temperature == 0.9
-        assert s.max_tokens == 4096
-        assert s.server_host == "127.0.0.1"
-        assert s.server_port == 9000
+@pytest.mark.parametrize(
+    "kwargs",
+    [
+        {"requests": True},
+        {"provider_calls": 0},
+        {"timeout_seconds": float("nan")},
+        {"response_bytes": 999},
+        {"output_tokens": 50000},
+    ],
+)
+def test_limits_are_strict(kwargs):
+    with pytest.raises(ValidationError):
+        Limits(**kwargs)
 
-    def test_case_insensitive_provider(self, fake_env):
-        s = Settings()
-        assert s.get_api_key_for_provider("OpenAI") == "sk-test-openai-key"
-        assert s.get_api_key_for_provider("GROQ") == "gsk-test-groq-key"
 
-    def test_get_swarm_config_from_settings(self, fake_env):
-        s = Settings()
-        s.swarm_config_name = "basic"
-        config = s.get_swarm_config()
-        assert config.name == "basic"
+@pytest.mark.parametrize(
+    "changes",
+    [
+        {"n": 2},
+        {"temperature": float("nan")},
+        {"max_tokens": True},
+        {"unexpected": 1},
+        {"messages": []},
+        {"max_tokens": 5, "max_completion_tokens": 7},
+        {"stop": ["a"] * 5},
+        {"stop": ""},
+        {"messages": [{"role": "tool", "content": "result"}]},
+        {"messages": [{"role": "user", "content": [{"type": "image_url", "image_url": "x"}]}]},
+    ],
+)
+def test_request_rejects_unsupported_options(changes):
+    with pytest.raises(ValueError):
+        ChatRequest.model_validate(
+            {"model": "basic", "messages": [{"role": "user", "content": "hi"}], **changes}
+        )
+
+
+def test_tool_conversation_and_text_parts():
+    request = ChatRequest.model_validate(
+        {
+            "model": "basic",
+            "messages": [
+                {"role": "user", "content": [{"type": "text", "text": "read"}]},
+                {
+                    "role": "assistant",
+                    "tool_calls": [{"id": "call", "function": {"name": "Read", "arguments": "{}"}}],
+                },
+                {"role": "tool", "tool_call_id": "call", "content": "result"},
+            ],
+        }
+    )
+    assert request.messages[0].wire()["content"] == "read"
+    assert request.messages[-1].wire()["tool_call_id"] == "call"

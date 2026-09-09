@@ -1,13 +1,6 @@
-from src.cli.app import CLIApp
-from src.utils.logging import setup_logging
+"""Compatibility entry point for source checkouts; install the package first."""
 
-
-def main():
-    setup_logging()
-    
-    app = CLIApp()
-    app.start()
-
+from swarm_of_experts.cli import main
 
 if __name__ == "__main__":
     main()

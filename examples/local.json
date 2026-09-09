@@ -1,0 +1,55 @@
+{
+  "providers": {
+    "local": {
+      "base_url": "http://127.0.0.1:8080/v1",
+      "api_key_env": "LLM_API_KEY"
+    }
+  },
+  "swarms": {
+    "local-single": {
+      "generators": [
+        {
+          "provider": "local",
+          "model": "local-model",
+          "max_tokens": 512
+        }
+      ]
+    },
+    "local-swarm": {
+      "generators": [
+        {
+          "provider": "local",
+          "model": "local-model",
+          "temperature": 0.3,
+          "max_tokens": 512
+        },
+        {
+          "provider": "local",
+          "model": "local-model",
+          "temperature": 0.5,
+          "max_tokens": 512
+        },
+        {
+          "provider": "local",
+          "model": "local-model",
+          "temperature": 0.7,
+          "max_tokens": 512
+        }
+      ],
+      "merger": {
+        "provider": "local",
+        "model": "local-model",
+        "temperature": 0.3,
+        "max_tokens": 512
+      },
+      "min_success": 2
+    }
+  },
+  "default_swarm": "local-single",
+  "limits": {
+    "requests": 4,
+    "provider_calls": 3,
+    "timeout_seconds": 300,
+    "output_tokens": 1024
+  }
+}
