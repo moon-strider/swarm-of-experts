@@ -49,16 +49,20 @@ The [long-task integration check](https://github.com/moon-strider/openclaw-long-
 
 ## MAKER
 
-Run the benchmark from an installed `openclaw-long-tasks` checkout:
+Run the long-horizon choice benchmark from an installed `openclaw-long-tasks` checkout:
 
 ~~~bash
-uv run python scripts/benchmark_hanoi.py \
+uv run python scripts/benchmark_choices.py \
   --base-url http://127.0.0.1:8000/v1 --model local-single \
-  --state-mode deterministic --prompt-mode phase \
-  --temperature 0.7 --disks 2 3 4 --seeds 11 29 \
-  --max-samples 12 --output results/hanoi
+  --disks 7 --routing-style lookup --rule-style positive \
+  --temperature 0.1 --seeds 941 947 --margins 3 1 \
+  --max-samples 48 --max-calls 4000 --output results/hundred
 ~~~
+
+The recorded continuation uses an 8,192-token llama.cpp context (`-c 8192`); its report pins the model revision, checksum and remaining server settings.
+
+The lookup adapter asks the model for a destination on disk-one turns and an action choice on the other turns. Long Tasks supplies the algorithm phase and maintains state in code. Each counted move still requires an actual model answer; a wrong legal answer can win. See the [continuation protocol and raw evidence](https://github.com/moon-strider/openclaw-long-tasks/blob/main/docs/research-hundred.md) for complete results and the limits of this assisted task.
 
 MAKER owns its sample voting and checkpoint journal. Use `local-single` as its endpoint so a vote corresponds to one model call. A Swarm text merger is not a first-to-ahead-by-k voter.
 
-See the [experiment report and limitations](https://github.com/moon-strider/openclaw-long-tasks/blob/main/docs/experiments.md) before interpreting a small-task success as evidence about long runs.
+The [earlier experiments](https://github.com/moon-strider/openclaw-long-tasks/blob/main/docs/experiments.md) retain the original small-task failures and OpenClaw checks. The newer Hanoi continuation calls Swarm directly; it does not run an OpenClaw agent turn per move.
