@@ -16,6 +16,7 @@ def settings():
                 "pair": {"generators": [gen, gen], "merger": gen},
             },
             "limits": {"timeout_seconds": 2},
+            "default_swarm": "basic",
         }
     )
 

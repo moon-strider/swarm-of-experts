@@ -38,7 +38,13 @@ def test_keys_are_explicit_and_not_in_configuration_repr():
         provider.key({})
     assert provider.key({"TEST_KEY": "private-key"}) == "private-key"
     assert Provider(base_url="http://localhost/v1").key({}) == "local"
-    config = load_settings(env={"SWARM_API_KEY": "private-key"})
+    config = load_settings(
+        env={
+            "LLM_BASE_URL": "http://127.0.0.1:8080/v1",
+            "LLM_MODEL": "small",
+            "SWARM_API_KEY": "private-key",
+        }
+    )
     assert "private-key" not in repr(config)
     assert "private-key" not in config.model_dump_json()
 
@@ -48,10 +54,18 @@ def test_local_defaults_and_no_automatic_dotenv(tmp_path, monkeypatch):
     (tmp_path / ".env").write_text("SWARM_API_KEY=not-loaded\n")
     config = load_settings(env={"LLM_BASE_URL": "http://127.0.0.1:8080/v1", "LLM_MODEL": "small"})
     assert config.default_swarm == "local-single"
+    assert set(config.providers) == {"local"}
+    assert set(config.swarms) == {"local-single", "local-swarm"}
     assert len(config.swarms["local-swarm"].generators) == 3
     assert config.api_key is None
     with pytest.raises(ValueError):
         load_settings(env={"LLM_BASE_URL": "http://127.0.0.1"})
+
+
+@pytest.mark.parametrize("env", [{}, {"LLM_MODEL": "small"}])
+def test_endpoint_and_model_must_be_explicit(env):
+    with pytest.raises(ValueError, match="LLM_BASE_URL and LLM_MODEL"):
+        load_settings(env=env)
 
 
 def test_file_configuration_is_validated(tmp_path, settings):
@@ -108,6 +122,7 @@ def test_limits_are_strict(kwargs):
         {"temperature": float("nan")},
         {"max_tokens": True},
         {"unexpected": 1},
+        {"user": "unused"},
         {"messages": []},
         {"max_tokens": 5, "max_completion_tokens": 7},
         {"stop": ["a"] * 5},

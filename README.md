@@ -6,22 +6,16 @@ Swarm sends independent requests to configured generators, optionally decomposes
 
 ## Quick start
 
-Requires Python 3.11 or later.
+Requires Python 3.11 or later and a running OpenAI-compatible model endpoint.
 
 ~~~bash
 git clone https://github.com/moon-strider/swarm-of-experts
 cd swarm-of-experts
 uv sync --frozen
-export OPENAI_API_KEY='your-key'
-uv run swarm-of-experts chat --model basic --prompt 'Explain optimistic concurrency'
-~~~
-
-For a running local OpenAI-compatible server:
-
-~~~bash
 export LLM_BASE_URL=http://127.0.0.1:8080/v1
 export LLM_MODEL=local-model
 uv run swarm-of-experts --check
+uv run swarm-of-experts chat --prompt 'Explain optimistic concurrency'
 uv run swarm-of-experts serve --port 8000
 ~~~
 
@@ -33,7 +27,7 @@ curl http://127.0.0.1:8000/v1/chat/completions \
 
 Use `local-single` for tool-using clients, including OpenClaw. Use `local-swarm` for three text generators followed by a merger. Configure your own models in [examples/local.json](examples/local.json).
 
-For an installed CLI without an active environment, run `uv tool install .`. The source-tree `python main.py` entrypoint remains available.
+For an installed CLI without an active environment, run `uv tool install .`.
 
 ## What it handles
 
@@ -52,7 +46,7 @@ An ensemble can repeat or amplify the same mistake. Its output is an answer to e
 
 [openclaw-long-tasks](https://github.com/moon-strider/openclaw-long-tasks) owns durable jobs, checkpoints and the MAKER-inspired Hanoi experiment. It can use this server as its model endpoint. Swarm remains usable independently.
 
-[Local inference and OpenClaw](docs/local-inference.md) explains the setup. [The experiment report](https://github.com/moon-strider/openclaw-long-tasks/blob/main/docs/experiments.md) contains the measured outcomes and failed attempts.
+[Local inference and OpenClaw](docs/local-inference.md) explains the setup. [The experiment report](https://github.com/moon-strider/openclaw-long-tasks/blob/main/docs/research-hundred.md) contains the measured outcomes and failed attempts.
 
 ## Configuration and API
 
@@ -60,7 +54,6 @@ An ensemble can repeat or amplify the same mistake. Its output is an answer to e
 | --- | --- |
 | Routes, accepted fields, errors, streaming and limits | [API reference](docs/api.md) |
 | CPU inference, OpenClaw and MAKER integration | [Local inference](docs/local-inference.md) |
-| Changes from the original prototype | [Migration notes](docs/migration.md) |
 
 ~~~bash
 uv run swarm-of-experts --config examples/local.json --check
@@ -68,7 +61,7 @@ uv run swarm-of-experts --config examples/local.json serve
 uv run swarm-of-experts chat --model local-single --prompt 'Hello' --stream
 ~~~
 
-Configuration is explicit JSON. Credentials are selected by environment-variable name, never embedded in configuration files. The package does not load `.env` files automatically.
+Set `LLM_BASE_URL` and `LLM_MODEL` for the `local-single` and `local-swarm` routes. Set `LLM_API_KEY` when the upstream requires authentication. For custom providers, models and topology, use JSON through `--config` or `SWARM_CONFIG`, including an explicit `default_swarm`. Credentials are selected by environment-variable name, never embedded in configuration files. The package does not load `.env` files automatically.
 
 ## Development
 

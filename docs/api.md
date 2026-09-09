@@ -7,8 +7,6 @@
 | GET /health | Minimal public liveness response |
 | GET /v1/models | Configured swarm names, not upstream discovery |
 | POST /v1/chat/completions | Text completion or SSE stream |
-| GET /sessions/stats | Compatibility response describing the stateless server |
-| POST /sessions/cleanup | Compatibility no-op; no conversations are retained |
 
 Except for health, routes require `Authorization: Bearer ...` when `SWARM_API_KEY` is set. Non-loopback CLI binding requires that key. When embedding the ASGI app behind your own server, configure authentication and TLS at that boundary.
 
@@ -16,7 +14,7 @@ Except for health, routes require `Authorization: Bearer ...` when `SWARM_API_KE
 
 Required: `model` and `messages`. Messages accept system, developer, user, assistant and tool roles, with strings or text-only content parts. Tool messages require `tool_call_id`.
 
-Optional generation fields: `temperature`, `top_p`, `max_tokens` or `max_completion_tokens` (choose one), `frequency_penalty`, `presence_penalty`, `stop`, `seed`, and `n: 1`. `user` is accepted for client compatibility but is not forwarded or retained.
+Optional generation fields: `temperature`, `top_p`, `max_tokens` or `max_completion_tokens` (choose one), `frequency_penalty`, `presence_penalty`, `stop`, `seed`, and `n: 1`.
 
 Single-model routes also forward `tools`, `tool_choice`, `parallel_tool_calls` and tool-call history. Tools must use the function schema. The client executes the selected tool and sends its result in a subsequent request.
 
@@ -50,8 +48,6 @@ The final response includes a `swarm` extension with per-call stage, provider, m
 
 ## Providers and credentials
 
-Presets use OpenAI-compatible HTTP endpoints for OpenAI, Anthropic, Google, Groq and DeepSeek. The Anthropic route uses its [limited compatibility layer](https://platform.claude.com/docs/en/cli-sdks-libraries/libraries/openai-sdk); it does not expose native Claude features. Google documents its [compatibility endpoint](https://ai.google.dev/gemini-api/docs/openai). Cloud inference is not part of the local test results.
+Configure any OpenAI-compatible HTTP endpoint explicitly. `LLM_BASE_URL` and `LLM_MODEL` create `local-single` and `local-swarm`; `LLM_API_KEY` supplies the upstream credential. These routes can also target a remote HTTPS endpoint. Custom JSON configuration declares `providers`, `swarms` and `default_swarm`; model ids come from the operator's configuration.
 
 Set `api_key_env` to the name of an environment variable. HTTPS is required except for literal loopback hosts. URLs cannot include embedded credentials, queries or fragments. Custom endpoints are operator-controlled configuration.
-
-Built-in names are retained for migration, but hosted model availability changes. Replace model ids explicitly when a provider retires one.

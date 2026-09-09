@@ -83,7 +83,6 @@ class ChatRequest(StrictModel):
     stop: str | list[str] | None = None
     seed: int | None = Field(default=None, strict=True)
     n: Literal[1] = 1
-    user: str | None = Field(default=None, max_length=256)
     tools: list[ToolSpec] | None = Field(default=None, max_length=64)
     tool_choice: Literal["auto", "none", "required"] | dict[str, Any] | None = None
     parallel_tool_calls: bool | None = None
@@ -102,5 +101,5 @@ class ChatRequest(StrictModel):
     def options(self) -> dict[str, Any]:
         return self.model_dump(
             exclude_none=True,
-            exclude={"model", "messages", "stream", "stream_options", "n", "user"},
+            exclude={"model", "messages", "stream", "stream_options", "n"},
         )

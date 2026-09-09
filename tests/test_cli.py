@@ -76,6 +76,8 @@ def test_invalid_configuration_and_interruption(invoke, monkeypatch, capsys):
         raise ValueError("invalid setup")
 
     monkeypatch.setattr(cli, "load_settings", invalid)
+    invoke()
+    assert "serve" in capsys.readouterr().out
     with pytest.raises(SystemExit) as result:
         invoke("--check")
     assert result.value.code == 1

@@ -123,7 +123,7 @@ async def test_error_after_stream_start_has_no_success_terminator(make_backend, 
     assert app.state.runtime.active == 0
 
 
-async def test_multimodel_tools_rejected_and_sessions_are_stateless(make_backend, settings):
+async def test_multimodel_tools_rejected(make_backend, settings):
     app = create_app(settings, make_backend(lambda req: response()))
     async with client_for(app) as client:
         result = await client.post(
@@ -135,8 +135,6 @@ async def test_multimodel_tools_rejected_and_sessions_are_stateless(make_backend
             },
         )
         assert result.status_code == 400 and result.json()["error"]["code"] == "unsupported_tools"
-        assert (await client.get("/v1/sessions/stats")).json()["persistent_sessions"] is False
-        assert (await client.post("/v1/sessions/cleanup")).json()["cleaned_sessions"] == 0
 
 
 async def test_lifespan_does_not_cancel_unrelated_tasks(make_backend, settings):

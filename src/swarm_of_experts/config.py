@@ -84,7 +84,7 @@ class Limits(StrictModel):
 class Settings(StrictModel):
     providers: dict[Name, Provider] = Field(min_length=1, max_length=64)
     swarms: dict[Name, Swarm] = Field(min_length=1, max_length=128)
-    default_swarm: Name = "basic"
+    default_swarm: Name
     limits: Limits = Field(default_factory=Limits)
     api_key: SecretStr | None = Field(default=None, exclude=True, repr=False)
 
@@ -102,54 +102,19 @@ class Settings(StrictModel):
 
 
 def defaults(env: dict[str, str]) -> dict:
-    endpoints = {
-        "openai": "https://api.openai.com/v1",
-        "anthropic": "https://api.anthropic.com/v1",
-        "google": "https://generativelanguage.googleapis.com/v1beta/openai",
-        "groq": "https://api.groq.com/openai/v1",
-        "deepseek": "https://api.deepseek.com/v1",
-    }
-    providers = {
-        name: {"base_url": url, "api_key_env": f"{name.upper()}_API_KEY"}
-        for name, url in endpoints.items()
-    }
-
-    def gen(provider: str, model: str, temp: float = 0.7) -> dict:
-        return {"provider": provider, "model": model, "temperature": temp}
-
-    basic = gen("openai", env.get("DEFAULT_MODEL", "gpt-4.1"))
-    mini = gen("openai", "gpt-4.1-mini")
-    groq = gen("groq", "deepseek-r1-distill-llama-70b")
-    merger = gen("groq", "moonshotai/kimi-k2-instruct", 0.3)
-    swarms = {
-        "basic": {"generators": [basic]},
-        "swarm-lite": {
-            "generators": [dict(mini, temperature=t) for t in [0.3, 0.5, 0.7]],
-            "merger": mini,
-        },
-        "groq-single": {"generators": [groq]},
-        "groq-swarm": {
-            "generators": [dict(groq, temperature=t) for t in [0.3, 0.5, 0.7]],
-            "merger": merger,
-        },
-        "groq-taskmaster": {"generators": [groq] * 3, "merger": merger, "taskmaster": merger},
-    }
-    default_swarm = "basic"
-    if url := env.get("LLM_BASE_URL"):
-        if not env.get("LLM_MODEL"):
-            raise ValueError("LLM_MODEL is required with LLM_BASE_URL")
-        providers["local"] = {"base_url": url, "api_key_env": "LLM_API_KEY"}
-        local = gen("local", env["LLM_MODEL"])
-        swarms["local-single"] = {"generators": [local]}
-        swarms["local-swarm"] = {
-            "generators": [dict(local, temperature=t) for t in [0.3, 0.5, 0.7]],
-            "merger": local,
-        }
-        default_swarm = "local-single"
+    if not env.get("LLM_BASE_URL") or not env.get("LLM_MODEL"):
+        raise ValueError("Set LLM_BASE_URL and LLM_MODEL, or supply --config / SWARM_CONFIG")
+    local = {"provider": "local", "model": env["LLM_MODEL"]}
     return {
-        "providers": providers,
-        "swarms": swarms,
-        "default_swarm": env.get("DEFAULT_SWARM", default_swarm),
+        "providers": {"local": {"base_url": env["LLM_BASE_URL"], "api_key_env": "LLM_API_KEY"}},
+        "swarms": {
+            "local-single": {"generators": [local]},
+            "local-swarm": {
+                "generators": [dict(local, temperature=t) for t in [0.3, 0.5, 0.7]],
+                "merger": local,
+            },
+        },
+        "default_swarm": "local-single",
     }
 
 

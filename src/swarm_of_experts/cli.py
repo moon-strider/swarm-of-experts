@@ -78,6 +78,9 @@ def main() -> None:
     client.add_argument("--stream", action="store_true")
     client.add_argument("--json", action="store_true")
     args = parser.parse_args()
+    if not args.check and args.command is None:
+        parser.print_help()
+        return
     try:
         settings = load_settings(args.config)
         if args.check:
@@ -111,8 +114,6 @@ def main() -> None:
             uvicorn.run(create_app(settings), host=args.host, port=args.port, log_level="warning")
         elif args.command == "chat":
             asyncio.run(chat(args, settings))
-        else:
-            parser.print_help()
     except (SwarmError, ValueError, OSError, TimeoutError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         raise SystemExit(1) from exc

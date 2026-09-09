@@ -158,18 +158,6 @@ def create_app(settings: Settings | None = None, backend: Backend | None = None)
             ],
         }
 
-    @app.get("/v1/sessions/stats")
-    async def stats():
-        return {
-            "active_sessions": 0,
-            "active_requests": runtime.active,
-            "persistent_sessions": False,
-        }
-
-    @app.post("/v1/sessions/cleanup")
-    async def cleanup():
-        return {"cleaned_sessions": 0, "persistent_sessions": False}
-
     @app.post("/v1/chat/completions")
     async def chat(payload: ChatRequest, request: Request):
         runtime.validate(payload)
