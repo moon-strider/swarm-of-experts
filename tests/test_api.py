@@ -1,314 +1,171 @@
-import pytest
-from unittest.mock import patch, MagicMock, AsyncMock
-from fastapi.middleware.cors import CORSMiddleware
-from langchain_core.messages import HumanMessage, AIMessage
+import asyncio
+import json
 
-from src.api.schemas import (
-    ChatCompletionRequest, ChatMessage, Role,
-    ErrorType, ErrorCode, ErrorResponse, ErrorDetail,
-    ChatCompletionResponse, ChatCompletionChoice,
-    Usage, Model, ModelsResponse,
-)
+import httpx
+from openai import AsyncOpenAI
+
+from swarm_of_experts.api import create_app
+from swarm_of_experts.config import Settings
+
+from .conftest import response
+from .test_runtime import Events, sse
 
 
-class TestSchemas:
-    def test_chat_message_valid(self):
-        msg = ChatMessage(role=Role.USER, content="Hello")
-        assert msg.role == Role.USER
-        assert msg.content == "Hello"
+def client_for(app):
+    return httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test")
 
-    def test_chat_message_empty_content_raises(self):
-        with pytest.raises(Exception):
-            ChatMessage(role=Role.USER, content="")
 
-    def test_chat_message_whitespace_only_raises(self):
-        with pytest.raises(Exception):
-            ChatMessage(role=Role.USER, content="   ")
+async def test_official_client_nonstream_and_stream(make_backend, settings):
+    async def handler(req):
+        return (
+            httpx.Response(200, stream=Events(sse()))
+            if json.loads(req.content)["stream"]
+            else response()
+        )
 
-    def test_chat_message_with_name(self):
-        msg = ChatMessage(role=Role.USER, content="Hi", name="test_user")
-        assert msg.name == "test_user"
-
-    def test_chat_message_invalid_name_pattern(self):
-        with pytest.raises(Exception):
-            ChatMessage(role=Role.USER, content="Hi", name="invalid name!")
-
-    def test_request_valid(self):
-        req = ChatCompletionRequest(
+    app = create_app(settings, make_backend(handler))
+    async with AsyncOpenAI(
+        api_key="unused", base_url="http://test/v1", http_client=client_for(app), max_retries=0
+    ) as client:
+        result = await client.chat.completions.create(
+            model="basic", messages=[{"role": "user", "content": "hi"}]
+        )
+        assert result.choices[0].message.content == "answer"
+        assert result.usage.total_tokens == 5
+        stream = await client.chat.completions.create(
             model="basic",
-            messages=[ChatMessage(role=Role.USER, content="Hello")],
+            messages=[{"role": "user", "content": "hi"}],
+            stream=True,
+            stream_options={"include_usage": True},
         )
-        assert req.model == "basic"
-        assert req.temperature == 0.7
+        chunks = [chunk async for chunk in stream]
+        assert chunks[0].choices[0].delta.content == "hello"
+        assert chunks[-1].usage.total_tokens == 5
+    assert app.state.runtime.active == 0
 
-    def test_request_empty_model_raises(self):
-        with pytest.raises(Exception):
-            ChatCompletionRequest(
-                model="",
-                messages=[ChatMessage(role=Role.USER, content="Hi")],
-            )
 
-    def test_request_temperature_bounds(self):
-        with pytest.raises(Exception):
-            ChatCompletionRequest(
-                model="basic",
-                messages=[ChatMessage(role=Role.USER, content="Hi")],
-                temperature=3.0,
-            )
-
-    def test_request_last_message_must_be_user_or_system(self):
-        with pytest.raises(Exception):
-            ChatCompletionRequest(
-                model="basic",
-                messages=[
-                    ChatMessage(role=Role.USER, content="Hi"),
-                    ChatMessage(role=Role.ASSISTANT, content="Hello"),
-                ],
-            )
-
-    def test_request_stop_sequences_max_4(self):
-        with pytest.raises(Exception):
-            ChatCompletionRequest(
-                model="basic",
-                messages=[ChatMessage(role=Role.USER, content="Hi")],
-                stop=["a", "b", "c", "d", "e"],
-            )
-
-    def test_error_response_structure(self):
-        error = ErrorResponse(
-            error=ErrorDetail(
-                message="Something failed",
-                type=ErrorType.INTERNAL_ERROR.value,
-                code=ErrorCode.INTERNAL_ERROR.value,
-            )
+async def test_auth_and_errors_are_openai_shaped(make_backend, settings):
+    config = settings.model_copy(
+        update={"api_key": __import__("pydantic").SecretStr("local-secret")}
+    )
+    app = create_app(config, make_backend(lambda req: response(), config))
+    async with client_for(app) as client:
+        assert (await client.get("/health")).status_code == 200
+        denied = await client.get("/v1/models")
+        assert denied.status_code == 401 and "error" in denied.json()
+        client.headers["Authorization"] = "Bearer local-secret"
+        assert (await client.get("/v1/models")).status_code == 200
+        bad = await client.post(
+            "/v1/chat/completions",
+            json={"model": "missing", "messages": [{"role": "user", "content": "hi"}]},
         )
-        assert error.error.message == "Something failed"
-        assert error.object == "error"
+        assert bad.status_code == 404 and bad.json()["error"]["code"] == "model_not_found"
+        invalid = await client.post("/v1/chat/completions", json={"secret_field": "do-not-echo"})
+        assert invalid.status_code == 400 and "do-not-echo" not in invalid.text
 
-    def test_model_schema(self):
-        model = Model(id="basic", created=1000, owned_by="test")
-        assert model.object == "model"
 
-    def test_models_response(self):
-        resp = ModelsResponse(data=[
-            Model(id="basic", created=1000, owned_by="test"),
-        ])
-        assert resp.object == "list"
-        assert len(resp.data) == 1
+async def test_oversized_chunked_input_is_rejected_before_upstream(make_backend, settings):
+    data = settings.model_dump()
+    data["limits"]["request_bytes"] = 1024
+    config = Settings.model_validate(data)
 
-    def test_response_schema(self):
-        choice = ChatCompletionChoice(
-            index=0,
-            message=ChatMessage(role=Role.ASSISTANT, content="Hi"),
-            finish_reason="stop",
+    async def forbidden(req):
+        raise AssertionError("upstream must not be called")
+
+    async def chunks():
+        for _ in range(4):
+            yield b"x" * 400
+
+    app = create_app(config, make_backend(forbidden, config))
+    async with client_for(app) as client:
+        response = await client.post("/v1/chat/completions", content=chunks())
+        assert response.status_code == 413
+
+
+async def test_request_capacity_returns_http_error_and_releases(make_backend, settings):
+    data = settings.model_dump()
+    data["limits"]["requests"] = 1
+    config = Settings.model_validate(data)
+    started, release = asyncio.Event(), asyncio.Event()
+
+    async def handler(req):
+        started.set()
+        await release.wait()
+        return response()
+
+    app = create_app(config, make_backend(handler, config))
+    payload = {"model": "basic", "messages": [{"role": "user", "content": "hi"}]}
+    async with client_for(app) as client:
+        first = asyncio.create_task(client.post("/v1/chat/completions", json=payload))
+        await started.wait()
+        second = await client.post("/v1/chat/completions", json={**payload, "stream": True})
+        assert second.status_code == 429
+        release.set()
+        assert (await first).status_code == 200
+    assert app.state.runtime.active == 0
+
+
+async def test_error_after_stream_start_has_no_success_terminator(make_backend, settings):
+    app = create_app(
+        settings, make_backend(lambda req: httpx.Response(200, stream=Events(sse(done=False))))
+    )
+    async with client_for(app) as client:
+        result = await client.post(
+            "/v1/chat/completions",
+            json={
+                "model": "basic",
+                "messages": [{"role": "user", "content": "hi"}],
+                "stream": True,
+            },
         )
-        resp = ChatCompletionResponse(
-            id="test-id", created=1000, model="basic",
-            choices=[choice],
-            usage=Usage(prompt_tokens=10, completion_tokens=5, total_tokens=15),
+    assert "hello" in result.text and "incomplete_stream" in result.text
+    assert "data: [DONE]\n\n" not in result.text
+    assert app.state.runtime.active == 0
+
+
+async def test_multimodel_tools_rejected_and_sessions_are_stateless(make_backend, settings):
+    app = create_app(settings, make_backend(lambda req: response()))
+    async with client_for(app) as client:
+        result = await client.post(
+            "/v1/chat/completions",
+            json={
+                "model": "pair",
+                "messages": [{"role": "user", "content": "hi"}],
+                "tools": [{"type": "function", "function": {"name": "Read", "parameters": {}}}],
+            },
         )
-        assert resp.object == "chat.completion"
-        assert resp.usage.total_tokens == 15
+        assert result.status_code == 400 and result.json()["error"]["code"] == "unsupported_tools"
+        assert (await client.get("/v1/sessions/stats")).json()["persistent_sessions"] is False
+        assert (await client.post("/v1/sessions/cleanup")).json()["cleaned_sessions"] == 0
 
 
-class TestTokenEstimator:
-    def test_empty_string(self):
-        from src.api.server import TokenEstimator
-        assert TokenEstimator.estimate_tokens("") == 0
-
-    def test_normal_text(self):
-        from src.api.server import TokenEstimator
-        tokens = TokenEstimator.estimate_tokens("Hello world")
-        assert tokens > 0
-
-    def test_messages_estimation(self):
-        from src.api.server import TokenEstimator
-        messages = [
-            HumanMessage(content="Hello"),
-            AIMessage(content="Hi there, how can I help?"),
-        ]
-        tokens = TokenEstimator.estimate_messages_tokens(messages)
-        assert tokens > 0
-
-    def test_longer_text_more_tokens(self):
-        from src.api.server import TokenEstimator
-        short = TokenEstimator.estimate_tokens("Hi")
-        long = TokenEstimator.estimate_tokens("This is a much longer sentence with many words")
-        assert long > short
-
-
-class TestAPIValidator:
-    @pytest.fixture(autouse=True)
-    def setup_env(self, fake_env):
+async def test_lifespan_does_not_cancel_unrelated_tasks(make_backend, settings):
+    app = create_app(settings, make_backend(lambda req: response()))
+    unrelated = asyncio.create_task(asyncio.Event().wait())
+    async with app.router.lifespan_context(app):
         pass
-
-    def test_validate_empty_model_raises(self):
-        from src.api.server import APIValidator, APIValidationError
-        with pytest.raises(APIValidationError):
-            APIValidator.validate_model("")
-
-    def test_validate_unknown_model_raises(self):
-        from src.api.server import APIValidator, APIValidationError
-        with pytest.raises(APIValidationError, match="not found"):
-            APIValidator.validate_model("nonexistent-model")
-
-    def test_validate_valid_model(self):
-        from src.api.server import APIValidator
-        APIValidator.validate_model("basic")
-
-    def test_validate_request_empty_messages(self):
-        from src.api.server import APIValidator, APIValidationError
-        req = MagicMock()
-        req.model = "basic"
-        req.messages = []
-        req.stream = False
-        req.stream_options = None
-        req.n = 1
-        with pytest.raises(APIValidationError, match="empty"):
-            APIValidator.validate_request(req)
-
-    def test_validate_request_n_greater_than_1(self):
-        from src.api.server import APIValidator, APIValidationError
-        req = MagicMock()
-        req.model = "basic"
-        req.messages = [MagicMock()]
-        req.stream = False
-        req.stream_options = None
-        req.n = 3
-        with pytest.raises(APIValidationError, match="n > 1"):
-            APIValidator.validate_request(req)
+    assert not unrelated.done()
+    unrelated.cancel()
+    await asyncio.gather(unrelated, return_exceptions=True)
 
 
-class TestErrorResponses:
-    def test_create_error_response(self):
-        from src.api.server import create_error_response, APIValidationError
-        err = APIValidationError(
-            "Test error", ErrorType.INVALID_REQUEST_ERROR,
-            ErrorCode.INVALID_REQUEST, "model",
+async def test_request_deadline_releases_capacity(make_backend, settings):
+    data = settings.model_dump()
+    data["limits"]["timeout_seconds"] = 0.03
+    config = Settings.model_validate(data)
+    stopped = asyncio.Event()
+
+    async def handler(req):
+        try:
+            await asyncio.Event().wait()
+        finally:
+            stopped.set()
+
+    app = create_app(config, make_backend(handler, config))
+    async with client_for(app) as client:
+        result = await client.post(
+            "/v1/chat/completions",
+            json={"model": "basic", "messages": [{"role": "user", "content": "hi"}]},
         )
-        resp = create_error_response(err)
-        assert resp.error.message == "Test error"
-        assert resp.error.param == "model"
-
-    def test_create_generic_error_response(self):
-        from src.api.server import create_generic_error_response
-        resp = create_generic_error_response("Something broke")
-        assert resp.error.message == "Something broke"
-        assert resp.error.type == ErrorType.INTERNAL_ERROR.value
-
-
-class TestAPIEndpoints:
-    @pytest.fixture
-    def client(self, fake_env):
-        from fastapi.testclient import TestClient
-        from fastapi import FastAPI
-        from src.api import server as server_module
-
-        test_app = FastAPI()
-        for route in server_module.app.routes:
-            test_app.routes.append(route)
-        for handler_tuple in server_module.app.exception_handlers.items():
-            test_app.add_exception_handler(handler_tuple[0], handler_tuple[1])
-        test_app.add_middleware(
-            CORSMiddleware,
-            allow_origins=["*"], allow_credentials=True,
-            allow_methods=["*"], allow_headers=["*"],
-        )
-
-        with TestClient(test_app, raise_server_exceptions=False) as c:
-            yield c
-
-    def test_health_endpoint(self, client):
-        response = client.get("/health")
-        assert response.status_code == 200
-        data = response.json()
-        assert data["status"] == "healthy"
-        assert "session_stats" in data
-
-    def test_list_models(self, client):
-        response = client.get("/v1/models")
-        assert response.status_code == 200
-        data = response.json()
-        assert data["object"] == "list"
-        assert len(data["data"]) > 0
-        model_ids = [m["id"] for m in data["data"]]
-        assert "basic" in model_ids
-        assert "groq-swarm" in model_ids
-
-    def test_session_stats(self, client):
-        response = client.get("/v1/sessions/stats")
-        assert response.status_code == 200
-        data = response.json()
-        assert "active_sessions" in data
-
-    def test_chat_completions_invalid_model(self, client):
-        response = client.post("/v1/chat/completions", json={
-            "model": "nonexistent-model",
-            "messages": [{"role": "user", "content": "Hello"}],
-        })
-        assert response.status_code in (400, 422)
-
-    def test_chat_completions_empty_messages(self, client):
-        response = client.post("/v1/chat/completions", json={
-            "model": "basic",
-            "messages": [],
-        })
-        assert response.status_code in (400, 422)
-
-    def test_chat_completions_missing_content(self, client):
-        response = client.post("/v1/chat/completions", json={
-            "model": "basic",
-            "messages": [{"role": "user"}],
-        })
-        assert response.status_code == 400
-
-    @patch("src.api.server.server_instance")
-    def test_chat_completions_non_streaming(self, mock_server, client):
-        mock_session = MagicMock()
-        mock_session.history = MagicMock()
-        mock_session.history.get_messages.return_value = []
-        mock_session.history.add_message = MagicMock()
-        mock_session.send_message = AsyncMock(return_value="Test response")
-
-        mock_server.session_manager = MagicMock()
-        mock_server.session_manager.get_or_create_session.return_value = mock_session
-
-        response = client.post("/v1/chat/completions", json={
-            "model": "basic",
-            "messages": [{"role": "user", "content": "Hello"}],
-            "stream": False,
-        })
-        assert response.status_code == 200
-        data = response.json()
-        assert data["object"] == "chat.completion"
-        assert data["choices"][0]["message"]["content"] == "Test response"
-        assert data["choices"][0]["finish_reason"] == "stop"
-        assert "usage" in data
-
-    @patch("src.api.server.server_instance")
-    def test_chat_completions_streaming(self, mock_server, client):
-        mock_session = MagicMock()
-        mock_session.history = MagicMock()
-        mock_session.history.get_messages.return_value = []
-        mock_session.history.add_message = MagicMock()
-
-        async def mock_stream(msg):
-            for chunk in ["Hello", " world"]:
-                yield chunk
-
-        mock_session.stream_message = mock_stream
-
-        mock_server.session_manager = MagicMock()
-        mock_server.session_manager.get_or_create_session.return_value = mock_session
-
-        response = client.post("/v1/chat/completions", json={
-            "model": "basic",
-            "messages": [{"role": "user", "content": "Hello"}],
-            "stream": True,
-        })
-        assert response.status_code == 200
-        assert "text/event-stream" in response.headers["content-type"]
-
-        lines = response.text.strip().split("\n")
-        data_lines = [line for line in lines if line.startswith("data: ") and line != "data: [DONE]"]
-        assert len(data_lines) >= 2
+    assert result.status_code == 504
+    assert stopped.is_set() and app.state.runtime.active == 0
